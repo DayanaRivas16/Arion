@@ -31,7 +31,7 @@ app.secret_key = 'mister'
 # CONFIGURACIÓN DE LA BASE DE DATOS POSTGRESQL
 # =====================================================================
 DB_HOST = "localhost"
-DB_NAME = "arion_db"     
+DB_NAME = "arion"     
 DB_USER = "postgres"      
 DB_PASS = "123456"  
 
@@ -420,6 +420,31 @@ def reset_password():
 def home():
     return render_template('home.html')
 
+@app.route('/explorar')
+@login_required
+def explorar():
+    return render_template('explorar_proyectos.html')
+
+@app.route('/subir')
+@login_required
+def subir():
+    return render_template('subir_proyecto.html')
+
+@app.route('/perfil')
+@login_required
+def perfil():
+    return render_template('mi_perfil.html')
+
+@app.route('/recursos')
+@login_required
+def recursos():
+    return render_template('recursos.html')
+
+# Ruta dinámica para ver un proyecto por su ID 
+@app.route('/proyecto/<int:id>')
+@login_required
+def ver_proyecto(id):
+    return render_template('ver_proyecto.html', proyecto_id=id)
 # =====================================================================
 # MANEJO DE ERRORES 
 # =====================================================================
