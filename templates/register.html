@@ -1,0 +1,308 @@
+{% extends 'base.html' %}
+
+{% block title %}Crear Cuenta - ARION{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/register.css') }}">
+
+<div class="row justify-content-center align-items-center my-5 font-inter">
+    <div class="col-12 col-sm-10 col-md-8 col-lg-5 col-xl-4">
+        
+        <div id="register-view-pane" class="card border-0 shadow-sm rounded-4 p-4 p-sm-5 bg-white text-start view-fade-in">
+            
+            <div class="text-center mb-4">
+                <div class="bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 56px; height: 56px;">
+                    <i class="bi bi-person-plus fs-3"></i>
+                </div>
+                <h2 class="fw-black text-dark h4 m-0">Crea tu cuenta</h2>
+                <p class="text-muted small mt-1">Regístrate para comenzar a explorar</p>
+            </div>
+
+            <button type="button" class="btn btn-white bg-white border text-dark w-100 d-flex align-items-center justify-content-center gap-2 rounded-3 shadow-sm mb-4 fw-medium custom-auth-btn" style="height: 48px;" onclick="handleGoogleRegister()">
+                <svg width="18" height="18" viewBox="0 0 24 24" class="me-1">
+                    <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v3.92h6.61a5.66 5.66 0 0 1-2.45 3.71v3.08h3.95a12 12 0 0 0 3.63-8.64z"/>
+                    <path fill="#34A853" d="M12 24c3.24 0 5.97-1.08 7.96-2.91l-3.95-3.08c-1.1.74-2.51 1.18-4.01 1.18-3.09 0-5.71-2.09-6.64-4.9H1.31v3.18A12 12 0 0 0 12 24z"/>
+                    <path fill="#FBBC05" d="M5.36 14.29a7.16 7.16 0 0 1 0-4.58V6.53H1.31a12 12 0 0 0 0 10.94l4.05-3.18z"/>
+                    <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.43-3.43A11.93 11.93 0 0 0 12 0 12 12 0 0 0 1.31 6.53l4.05 3.18c.93-2.81 3.55-4.9 6.64-4.9z"/>
+                </svg>
+                Continuar con Google
+            </button>
+
+            <div class="position-relative mb-4 text-center">
+                <hr class="text-muted opacity-25 m-0">
+                <span class="position-absolute top-50 start-50 translate-middle bg-white px-3 text-uppercase text-muted fw-bold" style="font-size: 0.68rem; letter-spacing: 0.05em;">o</span>
+            </div>
+
+            <div id="register-error-alert" class="alert alert-danger border-0 rounded-3 small py-2.5 d-none mb-4" role="alert"></div>
+
+            <form id="register-form" method="POST" action="/register" onsubmit="handleRegisterSubmit(event)">
+                <div class="mb-3">
+                    <label for="email" class="form-label small fw-medium text-dark">Correo electrónico</label>
+                    <div class="position-relative">
+                        <span class="position-absolute top-50 start-0 translate-middle-y ps-3 text-muted z-3">
+                            <i class="bi bi-envelope"></i>
+                        </span>
+                        <input 
+                            id="email" 
+                            name="email" 
+                            type="email" 
+                            autocomplete="email" 
+                            class="form-control rounded-3 custom-input" 
+                            placeholder="tu@ejemplo.com" 
+                            style="height: 46px; padding-left: 42px;"
+                            required
+                            autofocus
+                        >
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="password" class="form-label small fw-medium text-dark">Contraseña</label>
+                    <div class="position-relative">
+                        <span class="position-absolute top-50 start-0 translate-middle-y ps-3 text-muted z-3">
+                            <i class="bi bi-lock"></i>
+                        </span>
+                        <input 
+                            id="password" 
+                            name="password" 
+                            type="password" 
+                            autocomplete="new-password" 
+                            class="form-control rounded-3 custom-input" 
+                            placeholder="••••••••" 
+                            style="height: 46px; padding-left: 42px;"
+                            required
+                        >
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label for="confirm" class="form-label small fw-medium text-dark">Confirmar contraseña</label>
+                    <div class="position-relative">
+                        <span class="position-absolute top-50 start-0 translate-middle-y ps-3 text-muted z-3">
+                            <i class="bi bi-lock-fill"></i>
+                        </span>
+                        <input 
+                            id="confirm" 
+                            name="confirm" 
+                            type="password" 
+                            autocomplete="new-password" 
+                            class="form-control rounded-3 custom-input" 
+                            placeholder="••••••••" 
+                            style="height: 46px; padding-left: 42px;"
+                            required
+                        >
+                    </div>
+                </div>
+
+                <button type="submit" id="btn-register-submit" class="btn btn-primary w-100 fw-medium rounded-3 d-flex align-items-center justify-content-center gap-2 shadow-sm transition-all" style="height: 46px;">
+                    Crear cuenta
+                </button>
+            </form>
+
+            <div class="text-center mt-4 small text-muted">
+                ¿Ya tienes una cuenta? 
+                <a href="{{ url_for('login') }}" class="text-primary fw-medium text-decoration-none hover-underline">Inicia sesión</a>
+            </div>
+        </div>
+
+
+        <div id="otp-view-pane" class="card border-0 shadow-sm rounded-4 p-4 p-sm-5 bg-white text-start view-fade-in d-none">
+            
+            <div class="text-center mb-4">
+                <div class="bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 56px; height: 56px;">
+                    <i class="bi bi-envelope-check fs-3"></i>
+                </div>
+                <h2 class="fw-black text-dark h4 m-0">Verifica tu correo</h2>
+                <p class="text-muted small mt-2" id="otp-subtitle-text">Hemos enviado un código a tu correo electrónico</p>
+            </div>
+
+            <div id="otp-error-alert" class="alert alert-danger border-0 rounded-3 small py-2.5 d-none mb-4" role="alert"></div>
+
+            <form id="otp-form" method="POST" action="/verify-otp" onsubmit="handleOtpSubmit(event)">
+                <div class="d-flex justify-content-center gap-2 mb-4" id="otp-slots-group">
+                    {% for i in range(6) %}
+                    <input 
+                        type="text" 
+                        maxLength="1" 
+                        class="form-control text-center fw-bold fs-4 rounded-3 otp-slot-input shadow-sm border" 
+                        style="width: 46px; height: 52px; background-color: #f8fafc;"
+                        data-index="{{ i }}"
+                        autocomplete="one-time-code"
+                        inputmode="numeric"
+                        pattern="[0-9]*"
+                    >
+                    {% endfor %}
+                </div>
+
+                <input type="hidden" id="hidden-otp-code" name="otp_code">
+                <input type="hidden" id="otp-email" name="email">
+
+                <button type="submit" id="btn-otp-verify" class="btn btn-primary w-100 fw-medium rounded-3 d-flex align-items-center justify-content-center gap-2 shadow-sm transition-all" style="height: 46px;" disabled>
+                    Verificar código
+                </button>
+            </form>
+
+            <p class="text-center small text-muted mt-4 mb-0">
+                ¿No recibiste el código? 
+                <button type="button" class="btn btn-link p-0 text-primary fw-medium text-decoration-none small hover-underline focus-none align-baseline" onclick="handleResendOtp()">
+                    Reenviar código
+                </button>
+            </p>
+        </div>
+
+    </div>
+</div>
+
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
+    <div id="success-toast" class="toast border-0 rounded-3 shadow-lg bg-dark text-white" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex p-3 align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-2 small">
+                <i class="bi bi-check-circle-fill text-success fs-5"></i>
+                <div class="fw-medium" id="toast-message-body">Código enviado con éxito.</div>
+            </div>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let userEmail = "";
+
+    // Elementos de la interfaz
+    const registerPane = document.getElementById('register-view-pane');
+    const otpPane = document.getElementById('otp-view-pane');
+    const registerErrorAlert = document.getElementById('register-error-alert');
+    const otpErrorAlert = document.getElementById('otp-error-alert');
+    const otpSubtitleText = document.getElementById('otp-subtitle-text');
+    const btnRegisterSubmit = document.getElementById('btn-register-submit');
+    const btnOtpVerify = document.getElementById('btn-otp-verify');
+    const hiddenOtpInput = document.getElementById('hidden-otp-code');
+
+    // 1. ENVÍO DEL FORMULARIO DE REGISTRO (Manejo de estados y cambio de vista)
+    function handleRegisterSubmit(event) {
+        event.preventDefault();
+        registerErrorAlert.classList.add('d-none');
+        
+        const emailInput = document.getElementById('email').value.trim();
+        const passwordInput = document.getElementById('password').value;
+        const confirmInput = document.getElementById('confirm').value;
+
+        // Validación de contraseñas idénticas (como en React)
+        if (passwordInput !== confirmInput) {
+            registerErrorAlert.innerText = "Las contraseñas no coinciden.";
+            registerErrorAlert.classList.remove('d-none');
+            return;
+        }
+
+        // Activación del loader en el botón
+        btnRegisterSubmit.disabled = true;
+        btnRegisterSubmit.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Creando cuenta...`;
+
+        // Simulación del comportamiento asíncrono exitoso de registro
+        setTimeout(() => {
+            userEmail = emailInput;
+            document.getElementById('otp-email').value = userEmail;
+            otpSubtitleText.innerText = `Hemos enviado un código a ${userEmail}`;
+            
+            // Transición suave ocultando registro y mostrando el panel OTP
+            registerPane.classList.add('d-none');
+            otpPane.classList.remove('d-none');
+            
+            // Foco inmediato al primer cuadro del código OTP
+            const firstSlot = document.querySelector('.otp-slot-input[data-index="0"]');
+            if(firstSlot) firstSlot.focus();
+        }, 1200);
+    }
+
+    // 2. COMPORTAMIENTO INTERACTIVO DE LOS SLOTS OTP (Estilo InputOTP de Shadcn)
+    const slots = document.querySelectorAll('.otp-slot-input');
+    
+    slots.forEach((slot, index) => {
+        // Avance automático al escribir un dígito válido
+        slot.addEventListener('input', (e) => {
+            const val = e.target.value;
+            // Asegurar que solo admita números
+            e.target.value = val.replace(/[^0-9]/g, '');
+            
+            if (e.target.value.length === 1 && index < slots.length - 1) {
+                slots[index + 1].focus();
+            }
+            updateOtpFullCode();
+        });
+
+        // Retroceso automático con la tecla de borrar (Backspace)
+        slot.addEventListener('keydown', (e) => {
+            if (e.key === 'Backspace' && !slot.value && index > 0) {
+                slots[index - 1].focus();
+                slots[index - 1].value = '';
+                updateOtpFullCode();
+            }
+        });
+
+        // Soporte para pegar un código completo de 6 dígitos directamente
+        slot.addEventListener('paste', (e) => {
+            e.preventDefault();
+            const pasteData = (e.clipboardData || window.clipboardData).getData('text').trim();
+            if (/^\d{6}$/.test(pasteData)) {
+                slots.forEach((s, idx) => {
+                    s.value = pasteData[idx];
+                });
+                slots[slots.length - 1].focus();
+                updateOtpFullCode();
+            }
+        });
+    });
+
+    // Sincroniza y valida si el botón de verificar debe activarse
+    function updateOtpFullCode() {
+        let code = "";
+        slots.forEach(s => code += s.value);
+        hiddenOtpInput.value = code;
+        
+        // Habilita el botón de verificación solo cuando se completan los 6 caracteres
+        btnOtpVerify.disabled = (code.length < 6);
+    }
+
+    // 3. ENVÍO DE LA VERIFICACIÓN OTP
+    function handleOtpSubmit(event) {
+        event.preventDefault();
+        otpErrorAlert.classList.add('d-none');
+        
+        btnOtpVerify.disabled = true;
+        btnOtpVerify.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Verificando...`;
+
+        setTimeout(() => {
+            const finalCode = hiddenOtpInput.value;
+            // Para propósitos de simulación, el código '000000' lanzará un error de prueba
+            if (finalCode === "000000") {
+                otpErrorAlert.innerText = "Código de verificación no válido o expirado.";
+                otpErrorAlert.classList.remove('d-none');
+                btnOtpVerify.disabled = false;
+                btnOtpVerify.innerText = "Verificar código";
+            } else {
+                // Redirección exitosa a la raíz del home en ARION
+                window.location.href = "/";
+            }
+        }, 1500);
+    }
+
+    // 4. ACCIÓN DE REENVIAR CÓDIGO (Lanza Toast Informativo)
+    function handleResendOtp() {
+        otpErrorAlert.classList.add('d-none');
+        
+        // Inicializa y muestra el Toast nativo de Bootstrap
+        const toastEl = document.getElementById('success-toast');
+        const toast = new bootstrap.Toast(toastEl, { delay: 4000 });
+        
+        document.getElementById('toast-message-body').innerText = `Nuevo código enviado a ${userEmail}. Revisa tu bandeja de entrada. 📬`;
+        toast.show();
+    }
+
+    // Redirección externa simulada para el proveedor de Google
+    function handleGoogleRegister() {
+        window.location.href = "/";
+    }
+</script>
+
+
+{% endblock %}

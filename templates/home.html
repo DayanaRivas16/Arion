@@ -1,0 +1,272 @@
+{% extends 'base.html' %}
+
+{% block title %}Inicio - ARION{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-0">
+    
+    <section class="position-relative overflow-hidden py-5 hero-bg border-bottom">
+        <div class="position-absolute bg-primary opacity-10 rounded-circle blur-blob-1" style="width: 300px; height: 300px; top: -50px; right: -50px; filter: blur(80px); z-index: 1;"></div>
+        <div class="position-absolute bg-info opacity-10 rounded-circle blur-blob-2" style="width: 250px; height: 250px; bottom: -50px; left: 50px; filter: blur(60px); z-index: 1;"></div>
+
+        <div class="container-xl position-relative py-4 py-md-5" style="z-index: 2;">
+            <div class="row align-items-center g-5">
+                
+                <div class="col-12 col-md-7 text-start animate-fade-in-up">
+                    <span class="d-inline-block bg-primary-subtle text-primary small fw-semibold px-3 py-1.5 rounded-pill mb-4">
+                        Bienvenido a Arion
+                    </span>
+                    <h1 class="display-4 fw-black text-dark lh-tight mb-3">
+                        Comparte tus<br class="d-none d-sm-inline" /> ideas con el mundo
+                    </h1>
+                    <p class="text-muted fs-5 my-4 max-w-450 lh-base">
+                        Sube, organiza y muestra tus proyectos de forma profesional. Inspira, colabora y crece junto a nuestra comunidad.
+                    </p>
+                    
+                    <div class="d-flex flex-wrap gap-3 pt-2">
+                        <a href="{{ url_for('subir') }}" class="btn btn-primary rounded-pill px-4 py-2.5 fw-semibold d-inline-flex align-items-center gap-2 shadow-sm">
+                            <i class="bi bi-upload"></i> Subir mi proyecto
+                        </a>
+                        <a href="{{ url_for('explorar') }}" class="btn btn-outline-dark border-2 rounded-pill px-4 py-2.5 fw-semibold d-inline-flex align-items-center gap-2">
+                            <i class="bi bi-search"></i> Explorar proyectos
+                        </a>
+                    </div>
+
+                    <div class="row row-cols-3 g-2 mt-5 pt-3 border-top border-light-subtle">
+                        <div class="col d-flex align-items-center gap-2">
+                            <span class="fs-4">📁</span>
+                            <div>
+                                <h4 class="fw-bold text-dark m-0 fs-5">1,250+</h4>
+                                <small class="text-muted">Proyectos</small>
+                            </div>
+                        </div>
+                        <div class="col d-flex align-items-center gap-2">
+                            <span class="fs-4">👥</span>
+                            <div>
+                                <h4 class="fw-bold text-dark m-0 fs-5">3,800+</h4>
+                                <small class="text-muted">Usuarios</small>
+                            </div>
+                        </div>
+                        <div class="col d-flex align-items-center gap-2">
+                            <span class="fs-4">🏆</span>
+                            <div>
+                                <h4 class="fw-bold text-dark m-0 fs-5">220+</h4>
+                                <small class="text-muted">Destacados</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-md-5 d-none d-md-flex justify-content-center position-relative">
+                    <div class="position-relative" style="width: 350px; height: 350px;">
+                        <div class="w-100 h-100 animate-float">
+                            <img src="https://media.base44.com/images/public/6a0b20e9963ca6f1bc80b187/df96054b0_leo_principal.png" 
+                                 alt="Lemi" 
+                                 class="w-100 h-100 object-fit-contain drop-shadow-custom">
+                        </div>
+                        <div class="position-absolute bg-white rounded-4 shadow border p-3" style="bottom: -10px; right: -10px; max-width: 180px; z-index: 3;">
+                            <p class="small fw-medium text-dark m-0">¡Hola! Soy Lemi, tu guía en Arion.</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <section class="py-5 bg-white">
+        <div class="container-xl py-4">
+            <h2 class="text-center fw-bold text-dark mb-5 fs-2">
+                Todo lo que necesitas para compartir tus proyectos
+            </h2>
+
+            <div class="row row-cols-2 row-cols-lg-4 g-4">
+                <div class="col">
+                    <div class="card h-100 border-0 bg-light rounded-4 p-4 text-center feature-card">
+                        <div class="bg-primary-subtle text-primary rounded-4 d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 56px; height: 56px;">
+                            <i class="bi bi-upload fs-4"></i>
+                        </div>
+                        <h3 class="fw-bold text-dark h6 mb-2">Sube proyectos</h3>
+                        <p class="text-muted small m-0 lh-base">Comparte tus ideas de forma rápida y sencilla.</p>
+                    </div>
+                </div>
+
+                <div class="col">
+                    <div class="card h-100 border-0 bg-light rounded-4 p-4 text-center feature-card">
+                        <div class="bg-warning-subtle text-warning-emphasis rounded-4 d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 56px; height: 56px;">
+                            <i class="bi bi-folder2-open fs-4"></i>
+                        </div>
+                        <h3 class="fw-bold text-dark h6 mb-2">Organiza y gestiona</h3>
+                        <p class="text-muted small m-0 lh-base">Categoriza tus proyectos y lleva todo en orden.</p>
+                    </div>
+                </div>
+
+                <div class="col">
+                    <div class="card h-100 border-0 bg-light rounded-4 p-4 text-center feature-card">
+                        <div class="bg-success-subtle text-success rounded-4 d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 56px; height: 56px;">
+                            <i class="bi bi-globe fs-4"></i>
+                        </div>
+                        <h3 class="fw-bold text-dark h6 mb-2">Comparte con el mundo</h3>
+                        <p class="text-muted small m-0 lh-base">Haz que tu trabajo llegue a más personas.</p>
+                    </div>
+                </div>
+
+                <div class="col">
+                    <div class="card h-100 border-0 bg-light rounded-4 p-4 text-center feature-card">
+                        <div class="bg-warning-subtle text-warning rounded-4 d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 56px; height: 56px;">
+                            <i class="bi bi-trophy fs-4"></i>
+                        </div>
+                        <h3 class="fw-bold text-dark h6 mb-2">Destaca tu talento</h3>
+                        <p class="text-muted small m-0 lh-base">Tus mejores proyectos pueden ser destacados.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="py-5 bg-body-tertiary border-top border-bottom">
+        <div class="container-xl py-4">
+            <div class="d-flex align-items-center justify-content-between mb-4">
+                <h2 class="fw-bold text-dark m-0 fs-3">Proyectos destacados</h2>
+                <a href="{{ url_for('explorar') }}" class="text-primary fw-semibold text-decoration-none d-flex align-items-center gap-1 link-arrow">
+                    Ver todos <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+
+            <div id="carouselFeaturedProjects" class="carousel slide position-relative">
+                <div class="carousel-inner">
+                    <div class="carousel-item active">
+                        <div class="row g-4 row-cols-1 row-cols-sm-2 row-cols-md-4">
+                            
+                            <div class="col">
+                                <div class="card h-100 border-0 rounded-4 overflow-hidden shadow-sm hover-up">
+                                    <img src="https://images.unsplash.com/photo-1518780664697-55e3ad937233?w=400&h=250&fit=crop" class="card-img-top object-fit-cover" style="height: 160px;" alt="EcoHouse">
+                                    <div class="card-body p-3">
+                                        <span class="badge bg-primary-subtle text-primary mb-2 rounded-pill small fw-medium">Energía sostenible</span>
+                                        <h4 class="card-title fw-bold text-dark h5 mb-1">EcoHouse</h4>
+                                        <p class="text-muted small mb-3">Por Ana Gómez</p>
+                                        <div class="d-flex align-items-center justify-content-between pt-2 border-top">
+                                            <span class="text-warning small fw-bold d-flex align-items-center gap-1">
+                                                <i class="bi bi-star-fill"></i> 4.8
+                                            </span>
+                                            <span class="text-muted small d-flex align-items-center gap-1">
+                                                <i class="bi bi-eye"></i> 125
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col">
+                                <div class="card h-100 border-0 rounded-4 overflow-hidden shadow-sm hover-up">
+                                    <img src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400&h=250&fit=crop" class="card-img-top object-fit-cover" style="height: 160px;" alt="TaskFlow">
+                                    <div class="card-body p-3">
+                                        <span class="badge bg-secondary-subtle text-secondary-emphasis mb-2 rounded-pill small fw-medium">Gestor de tareas</span>
+                                        <h4 class="card-title fw-bold text-dark h5 mb-1">TaskFlow</h4>
+                                        <p class="text-muted small mb-3">Por Carlos Ruiz</p>
+                                        <div class="d-flex align-items-center justify-content-between pt-2 border-top">
+                                            <span class="text-warning small fw-bold d-flex align-items-center gap-1">
+                                                <i class="bi bi-star-fill"></i> 4.7
+                                            </span>
+                                            <span class="text-muted small d-flex align-items-center gap-1">
+                                                <i class="bi bi-eye"></i> 98
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col">
+                                <div class="card h-100 border-0 rounded-4 overflow-hidden shadow-sm hover-up">
+                                    <img src="https://images.unsplash.com/photo-1677442136019-21780ecad995?w=400&h=250&fit=crop" class="card-img-top object-fit-cover" style="height: 160px;" alt="Asistente IA">
+                                    <div class="card-body p-3">
+                                        <span class="badge bg-success-subtle text-success mb-2 rounded-pill small fw-medium">Inteligencia Artificial</span>
+                                        <h4 class="card-title fw-bold text-dark h5 mb-1">Asistente IA</h4>
+                                        <p class="text-muted small mb-3">Por María López</p>
+                                        <div class="d-flex align-items-center justify-content-between pt-2 border-top">
+                                            <span class="text-warning small fw-bold d-flex align-items-center gap-1">
+                                                <i class="bi bi-star-fill"></i> 4.9
+                                            </span>
+                                            <span class="text-muted small d-flex align-items-center gap-1">
+                                                <i class="bi bi-eye"></i> 210
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col">
+                                <div class="card h-100 border-0 rounded-4 overflow-hidden shadow-sm hover-up">
+                                    <img src="https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=400&h=250&fit=crop" class="card-img-top object-fit-cover" style="height: 160px;" alt="Mano Háptica">
+                                    <div class="card-body p-3">
+                                        <span class="badge bg-warning-subtle text-warning-emphasis mb-2 rounded-pill small fw-medium">Prótesis inteligente</span>
+                                        <h4 class="card-title fw-bold text-dark h5 mb-1">Mano Háptica</h4>
+                                        <p class="text-muted small mb-3">Por Diego Torres</p>
+                                        <div class="d-flex align-items-center justify-content-between pt-2 border-top">
+                                            <span class="text-warning small fw-bold d-flex align-items-center gap-1">
+                                                <i class="bi bi-star-fill"></i> 4.6
+                                            </span>
+                                            <span class="text-muted small d-flex align-items-center gap-1">
+                                                <i class="bi bi-eye"></i> 76
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+                <button class="carousel-control-prev custom-carousel-btn shadow" type="button" data-bs-target="#carouselFeaturedProjects" data-bs-slide="prev" style="left: -20px;">
+                    <i class="bi bi-chevron-left text-dark fs-5"></i>
+                </button>
+                <button class="carousel-control-next custom-carousel-btn shadow" type="button" data-bs-target="#carouselFeaturedProjects" data-bs-slide="next" style="right: -20px;">
+                    <i class="bi bi-chevron-right text-dark fs-5"></i>
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <section class="py-5 bg-white">
+        <div class="container-xl">
+            <div class="lemi-tip-card rounded-5 p-4 p-md-5 d-flex flex-column flex-md-row align-items-center gap-4 gap-md-5">
+                <div class="flex-shrink-0" style="width: 140px; height: 140px;">
+                    <img src="https://media.base44.com/images/public/6a0b20e9963ca6f1bc80b187/00ac705a2_leo_secundario_sinBG.png" alt="Lemi" class="w-100 h-100 object-fit-contain">
+                </div>
+                <div class="flex-grow-1 text-center text-md-start">
+                    <div class="d-flex align-items-center justify-content-center justify-content-md-start gap-2 mb-3">
+                        <i class="bi bi-lightbulb-fill text-primary fs-5"></i>
+                        <h3 class="fw-bold text-dark m-0 fs-5">Tip de Lemi</h3>
+                    </div>
+                    <p class="text-muted m-0 lh-base mx-auto mx-md-0" style="max-width: 500px;">
+                        Usa títulos claros y descripciones detalladas para que tu proyecto destaque y más personas lo encuentren.
+                    </p>
+                    <div class="d-flex gap-2 mt-4 justify-content-center justify-content-md-start">
+                        <div class="rounded-circle bg-primary" style="width: 10px; height: 10px;"></div>
+                        <div class="rounded-circle bg-primary opacity-25" style="width: 10px; height: 10px;"></div>
+                        <div class="rounded-circle bg-primary opacity-25" style="width: 10px; height: 10px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="py-5 bg-white">
+        <div class="container-xl">
+            <div class="bg-dark text-white rounded-5 p-5 text-center position-relative overflow-hidden shadow">
+                <div class="position-relative" style="z-index: 2;">
+                    <h2 class="fw-black display-5 mb-3">¿Listo para mostrar tu talento?</h2>
+                    <p class="text-white-50 fs-5 mb-4 mx-auto" style="max-width: 550px;">
+                        Únete a miles de desarrolladores y estudiantes que ya están compartiendo sus proyectos e ideas con el mundo.
+                    </p>
+                    <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg rounded-pill px-5 fw-bold text-white shadow-sm">
+                        Empezar gratis
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+</div>
+{% endblock %}
