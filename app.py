@@ -25,7 +25,7 @@ app.config['MAIL_DEFAULT_SENDER'] = 'ARION <diaznicolk@gmail.com>'
 
 mail = Mail(app)
 
-app.secret_key = 'mi_clave_secreta_super_segura'
+app.secret_key = 'mister'
 
 # =====================================================================
 # CONFIGURACIÓN DE LA BASE DE DATOS POSTGRESQL
@@ -111,14 +111,14 @@ def test_db():
         
         # 4. Mostramos el resultado en formato JSON en el navegador para verificar
         return jsonify({
-            "status": "Conexión exitosa a PostgreSQL 🚀",
+            "status": "Conexión exitosa a PostgreSQL",
             "usuarios_en_bd": usuarios_registrados
         }), 200
         
     except Exception as e:
         # Si algo falla (contraseña mal puesta, BD apagada, etc.), te dirá el error exacto
         return jsonify({
-            "status": "Error de conexión ❌",
+            "status": "Error de conexión",
             "detalles": str(e)
         }), 500
 
@@ -419,32 +419,6 @@ def reset_password():
 @login_required
 def home():
     return render_template('home.html')
-
-@app.route('/explorar')
-@login_required
-def explorar():
-    return render_template('explorar_proyectos.html')
-
-@app.route('/subir')
-@login_required
-def subir():
-    return render_template('subir_proyecto.html')
-
-@app.route('/perfil')
-@login_required
-def perfil():
-    return render_template('mi_perfil.html')
-
-@app.route('/recursos')
-@login_required
-def recursos():
-    return render_template('recursos.html')
-
-# Ruta dinámica para ver un proyecto por su ID 
-@app.route('/proyecto/<int:id>')
-@login_required
-def ver_proyecto(id):
-    return render_template('ver_proyecto.html', proyecto_id=id)
 
 # =====================================================================
 # MANEJO DE ERRORES 
