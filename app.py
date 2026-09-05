@@ -1,15 +1,17 @@
-from flask import Flask, render_template, redirect, url_for, session, flash, jsonify, request, get_flashed_messages
-from werkzeug.security import check_password_hash, generate_password_hash
+from flask import Flask, render_template, redirect, url_for, session, flash, jsonify
+from dotenv import load_dotenv
 from functools import wraps
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from authlib.integrations.flask_client import OAuth
 from flask_mail import Mail, Message
-import random
-from datetime import datetime, timedelta
 import os
+
+load_dotenv()
 
 app = Flask(__name__)
 
+app.secret_key = os.getenv('SECRET_KEY')
 # ======================================================
 # CONFIGURACIÓN DEL CORREO
 # ======================================================
@@ -19,19 +21,37 @@ app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
 
-app.config['MAIL_USERNAME'] = 'diaznicolk@gmail.com'
-app.config['MAIL_PASSWORD'] = 'fsbt hnng ozdu ehxq'
-app.config['MAIL_DEFAULT_SENDER'] = 'ARION <diaznicolk@gmail.com>'
+app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
+app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER')
 
 mail = Mail(app)
 
-app.secret_key = 'mister'
+
+# ======================================================
+# CONFIGURACIÓN DE GOOGLE OAUTH
+# ======================================================
+
+app.config['GOOGLE_CLIENT_ID'] = os.getenv('GOOGLE_CLIENT_ID')
+app.config['GOOGLE_CLIENT_SECRET'] = os.getenv('GOOGLE_CLIENT_SECRET')
+
+oauth = OAuth(app)
+
+google = oauth.register(
+    name='google',
+    client_id=app.config['GOOGLE_CLIENT_ID'],
+    client_secret=app.config['GOOGLE_CLIENT_SECRET'],
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    client_kwargs={
+        'scope': 'openid email profile'
+    }
+)
 
 # =====================================================================
 # CONFIGURACIÓN DE LA BASE DE DATOS POSTGRESQL
 # =====================================================================
 DB_HOST = "localhost"
-DB_NAME = "arion"     
+DB_NAME = "arion_db"     #Recuerden que acá deben colocar el nombre de la base de datos que ustedes tienen.
 DB_USER = "postgres"      
 DB_PASS = "123456"  
 
@@ -44,52 +64,6 @@ def get_db_connection():
         password=DB_PASS
     )
     return conn
-
-def enviar_codigo(email, codigo):
-
-    mensaje = Message(
-        subject="Código de verificación - ARION",
-        recipients=[email]
-    )
-
-    mensaje.body = f"""
-Hola.
-
-Gracias por registrarte en ARION.
-
-Tu código de verificación es:
-
-{codigo}
-
-Este código vence en 10 minutos.
-
-Si no solicitaste este registro puedes ignorar este correo.
-"""
-    try:
-        mail.send(mensaje)
-        app.logger.info(f"Email enviado a {email} con código {codigo}.")
-        try:
-            with open('email.log', 'a', encoding='utf-8') as fh:
-                fh.write(f"{datetime.now().isoformat()} INFO Enviado a {email} codigo {codigo}\n")
-        except Exception:
-            app.logger.exception('No se pudo escribir en email.log')
-        return True
-    except Exception as ex:
-        app.logger.exception(f"Error enviando email a {email}: {ex}")
-        try:
-            with open('email.log', 'a', encoding='utf-8') as fh:
-                fh.write(f"{datetime.now().isoformat()} ERROR Envio a {email} codigo {codigo} fallo: {str(ex)}\n")
-        except Exception:
-            app.logger.exception('No se pudo escribir en email.log')
-        return False
-@app.route('/test-email')
-def test_email():
-
-    codigo = random.randint(100000,999999)
-
-    enviar_codigo("anniacream@gmail.com", codigo)
-
-    return f"Correo enviado con código {codigo}"
 # =====================================================================
 # RUTA DE PRUEBA PARA CONEXIÓN
 # =====================================================================
@@ -140,156 +114,126 @@ def login_required(f):
 # =====================================================================
 # RUTAS PÚBLICAS
 # =====================================================================
-@app.route('/login', methods=['GET', 'POST']) # <-- ¡Aquí agregamos methods=['GET', 'POST']!
+@app.route('/login')
 def login():
-    # Si el usuario ya está logueado, lo mandamos al home
+
     if 'user_id' in session:
         return redirect(url_for('home'))
 
-    # PROCESAR EL FORMULARIO CUANDO PRESIONAN EL BOTÓN (POST)
-    if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
-
-        # Validación básica de campos vacíos
-        if not email or not password:
-            flash('Por favor, completa todos los campos.', 'error')
-            return render_template('login.html')
-
-        conn = None
-        cursor = None
-        try:
-            # Conexión segura a tu base de datos PostgreSQL
-            conn = get_db_connection()
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            
-            # Consulta preparada para mitigar inyecciones SQL
-            # Ajustar nombres de columnas y alias para que el resto del código funcione
-            query = "SELECT id_usuario AS id, nombre_completo AS nombre, correo_usuario AS email, password FROM usuarios WHERE correo_usuario = %s;"
-            cursor.execute(query, (email,))
-            usuario = cursor.fetchone()
-            
-        except Exception as e:
-            flash('Ocurrió un error en el servidor. Inténtalo más tarde.', 'error')
-            return render_template('login.html')
-        finally:
-            if cursor: cursor.close()
-            if conn: conn.close()
-
-        # Validación de las credenciales usando hash seguro
-        if usuario and check_password_hash(usuario['password'], password):
-            session.clear()
-            session['user_id'] = usuario['id']
-            session['user_name'] = usuario['nombre']
-            
-            flash(f'¡Bienvenido de nuevo, {usuario["nombre"]}!', 'success')
-            return redirect(url_for('home'))
-            # MOSTRAR LA PÁGINA NORMALMENTE (GET)
-            # Limpiamos los mensajes acumulados si el usuario no viene rebotado del guard de acceso
-    if not session.pop('redirected_by_guard', None):
-        get_flashed_messages(with_categories=True)
-        
     return render_template('login.html')
 
-@app.route('/register', methods=['GET', 'POST'])
+@app.route('/register')
 def register():
 
     if 'user_id' in session:
         return redirect(url_for('home'))
 
-    if request.method == 'POST':
+    return render_template('register.html')
 
-        email = request.form.get('email').strip().lower()
-        password = request.form.get('password')
-        confirm = request.form.get('confirm')
+# ======================================================
+# AUTENTICACIÓN CON GOOGLE
+# ======================================================
 
-        # Nombre temporal mientras lo agregamos al formulario
-        nombre = email.split("@")[0]
+@app.route('/login/google')
+def google_login():
+    redirect_uri = url_for('google_callback', _external=True)
+    return google.authorize_redirect(redirect_uri)
 
-        if not email or not password or not confirm:
-            return jsonify({
-                "success": False,
-                "message": "Todos los campos son obligatorios."
-            }), 400
 
-        if password != confirm:
-            return jsonify({
-                "success": False,
-                "message": "Las contraseñas no coinciden."
-            }), 400
+@app.route('/google/callback')
+def google_callback():
+
+    try:
+        # Obtener el token de Google
+        token = google.authorize_access_token()
+
+        # Obtener información del usuario
+        userinfo = token.get('userinfo')
+
+        if not userinfo:
+            flash('No fue posible obtener la información de Google.', 'error')
+            return redirect(url_for('login'))
+
+        google_id = userinfo.get('sub')
+        email = userinfo.get('email')
+        nombre = userinfo.get('name') or email.split('@')[0]
+
+        if not email:
+            flash('Google no proporcionó un correo electrónico.', 'error')
+            return redirect(url_for('login'))
 
         conn = None
         cursor = None
 
         try:
-
             conn = get_db_connection()
             cursor = conn.cursor(cursor_factory=RealDictCursor)
 
-            # Verificar si el correo ya existe
+            # Buscar si el usuario ya existe
             cursor.execute("""
-                SELECT id_usuario
+                SELECT id_usuario, nombre_completo, correo_usuario
                 FROM usuarios
-                WHERE correo_usuario=%s;
+                WHERE correo_usuario = %s;
             """, (email,))
 
             usuario = cursor.fetchone()
 
-            if usuario:
-                return jsonify({
-                    "success": False,
-                    "message": "Ese correo ya está registrado."
-                }), 400
+            # ==================================================
+            # SI NO EXISTE → CREARLO
+            # ==================================================
 
-            # Encriptar contraseña
-            password_hash = generate_password_hash(password)
-            codigo = str(random.randint(100000, 999999))
-            expiracion = datetime.now() + timedelta(minutes=10)
+            if not usuario:
 
-            # Guardar usuario
-            cursor.execute ("""
-                INSERT INTO usuarios
-                (
-                    nombre_completo,
-                    correo_usuario,
-                    password,
-                    id_tipo,
-                    codigo_otp,
-                    otp_expira
-                )
-                VALUES (%s,%s,%s,%s,%s,%s)
-            """,
-            (
-                nombre,
-                email,
-                password_hash,
-                1,
-                codigo,
-                expiracion
-            ))
+                cursor.execute("""
+                    INSERT INTO usuarios
+                    (
+                        nombre_completo,
+                        correo_usuario,
+                        password,
+                        id_tipo,
+                        verificado
+                    )
+                    VALUES (%s, %s, %s, %s, TRUE)
+                    RETURNING id_usuario, nombre_completo, correo_usuario;
+                """, (
+                    nombre,
+                    email,
+                    None,
+                    1
+                ))
 
-            conn.commit()
-            enviado = enviar_codigo(email, codigo)
+                usuario = cursor.fetchone()
 
-            message_text = "Usuario registrado correctamente."
-            if enviado:
-                message_text += " Código enviado por correo."
-            else:
-                message_text += " No se pudo enviar el correo; revisa los logs."
+                conn.commit()
 
-            return jsonify({
-                "success": True,
-                "message": message_text
-            }), 200
+            # ==================================================
+            # CREAR SESIÓN
+            # ==================================================
+
+            session.clear()
+
+            session['user_id'] = usuario['id_usuario']
+            session['user_name'] = usuario['nombre_completo']
+            session['user_email'] = usuario['correo_usuario']
+            session['google_id'] = google_id
+
+            return redirect(url_for('home'))
 
         except Exception as e:
 
-            conn.rollback()
+            if conn:
+                conn.rollback()
 
-            return jsonify({
-                "success": False,
-                "message": str(e)
-            }), 500
+            app.logger.exception(
+                f'Error registrando usuario con Google: {e}'
+            )
+
+            flash(
+                'Ocurrió un error al crear o iniciar tu cuenta.',
+                'error'
+            )
+
+            return redirect(url_for('login'))
 
         finally:
 
@@ -299,109 +243,19 @@ def register():
             if conn:
                 conn.close()
 
-    return render_template("register.html")
-@app.route('/verify-otp', methods=['POST'])
-def verify_otp():
-
-    email = request.form.get('email')
-    codigo = request.form.get('otp_code')
-
-    if not email or not codigo:
-        return jsonify({
-            "success": False,
-            "message": "Datos incompletos."
-        }), 400
-
-
-    conn = None
-    cursor = None
-
-    try:
-
-        conn = get_db_connection()
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-
-
-        cursor.execute("""
-            SELECT id_usuario, codigo_otp, otp_expira
-            FROM usuarios
-            WHERE correo_usuario=%s;
-        """, (email,))
-
-
-        usuario = cursor.fetchone()
-
-
-        if not usuario:
-            return jsonify({
-                "success": False,
-                "message": "Usuario no encontrado."
-            }), 404
-
-
-        # Validar código
-        if usuario['codigo_otp'] != codigo:
-
-            return jsonify({
-                "success": False,
-                "message": "Código incorrecto."
-            }), 400
-
-
-        # Validar expiración
-        if usuario['otp_expira'] < datetime.now():
-
-            return jsonify({
-                "success": False,
-                "message": "El código expiró."
-            }), 400
-
-
-
-        # Activar usuario
-        cursor.execute("""
-            UPDATE usuarios
-            SET 
-                verificado = TRUE,
-                codigo_otp = NULL,
-                otp_expira = NULL
-            WHERE id_usuario=%s;
-        """, (usuario['id_usuario'],))
-
-
-        conn.commit()
-
-
-        # Crear sesión automáticamente
-        session['user_id'] = usuario['id_usuario']
-
-
-        return jsonify({
-            "success": True,
-            "message": "Cuenta verificada correctamente."
-        }), 200
-
-
-
     except Exception as e:
 
-        if conn:
-            conn.rollback()
+        app.logger.exception(
+            f'Error en autenticación de Google: {e}'
+        )
 
-        return jsonify({
-            "success": False,
-            "message": str(e)
-        }), 500
+        flash(
+            'No fue posible iniciar sesión con Google.',
+            'error'
+        )
 
+        return redirect(url_for('login'))
 
-
-    finally:
-
-        if cursor:
-            cursor.close()
-
-        if conn:
-            conn.close()
 @app.route('/forgot-password')
 def forgot_password():
     return render_template('forgot_password.html')
