@@ -156,11 +156,19 @@ def google_callback():
 
         google_id = userinfo.get('sub')
         email = userinfo.get('email')
-        nombre = userinfo.get('name') or email.split('@')[0]
 
         if not email:
             flash('Google no proporcionó un correo electrónico.', 'error')
             return redirect(url_for('login'))
+
+        # Solo permitir correos cuyo dominio esté registrado en la tabla
+        # dominios_permitidos. Se compara el dominio completo después de @.
+        partes_correo = email.strip().lower().rsplit('@', 1)
+        if len(partes_correo) != 2 or not all(partes_correo):
+            flash('El correo electrónico no es válido.', 'error')
+            return redirect(url_for('login'))
+        dominio_correo = partes_correo[1]
+        nombre = userinfo.get('name') or partes_correo[0]
 
         conn = None
         cursor = None
@@ -169,12 +177,25 @@ def google_callback():
             conn = get_db_connection()
             cursor = conn.cursor(cursor_factory=RealDictCursor)
 
+            cursor.execute("""
+                SELECT id_dominio
+                FROM dominios_permitidos
+                WHERE LOWER(TRIM(BOTH '@' FROM BTRIM(dominio))) = %s;
+            """, (dominio_correo,))
+            dominio_permitido = cursor.fetchone()
+
+            if not dominio_permitido:
+                flash('Debes usar un correo de un dominio institucional permitido.', 'error')
+                return redirect(url_for('login'))
+
+            id_dominio = dominio_permitido['id_dominio']
+
             # Buscar si el usuario ya existe
             cursor.execute("""
                 SELECT id_usuario, nombre_completo, correo_usuario
                 FROM usuarios
                 WHERE correo_usuario = %s;
-            """, (email,))
+            """, (email.strip(),))
 
             usuario = cursor.fetchone()
 
@@ -187,23 +208,33 @@ def google_callback():
                 cursor.execute("""
                     INSERT INTO usuarios
                     (
+                        google_id,
                         nombre_completo,
                         correo_usuario,
-                        password,
                         id_tipo,
-                        verificado
+                        id_dominio
                     )
-                    VALUES (%s, %s, %s, %s, TRUE)
+                    VALUES (%s, %s, %s, %s, %s)
                     RETURNING id_usuario, nombre_completo, correo_usuario;
                 """, (
+                    google_id,
                     nombre,
-                    email,
-                    None,
-                    1
+                    email.strip(),
+                    1,
+                    id_dominio
                 ))
 
                 usuario = cursor.fetchone()
 
+                conn.commit()
+
+            else:
+                # Vincula usuarios existentes con el dominio permitido.
+                cursor.execute("""
+                    UPDATE usuarios
+                    SET id_dominio = %s
+                    WHERE id_usuario = %s
+                """, (id_dominio, usuario['id_usuario']))
                 conn.commit()
 
             # ==================================================
