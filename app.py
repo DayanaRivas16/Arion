@@ -1,4 +1,4 @@
-from flask import Flask, render_template, redirect, url_for, session, flash, jsonify
+from flask import Flask, render_template, redirect, url_for, session, flash, jsonify, request
 from dotenv import load_dotenv
 from functools import wraps
 import psycopg2
@@ -10,8 +10,8 @@ import os
 load_dotenv()
 
 app = Flask(__name__)
-
 app.secret_key = os.getenv('SECRET_KEY')
+
 # ======================================================
 # CONFIGURACIÓN DEL CORREO
 # ======================================================
@@ -310,9 +310,18 @@ def home():
 def explorar():
     return render_template('explorar_proyectos.html')
 
-@app.route('/subir')
+@app.route('/subir', methods=['GET', 'POST'])
 @login_required
 def subir():
+    if request.method == 'POST':
+        # Aquí procesas los datos del formulario
+        titulo = request.form.get('titulo')
+        categoria = request.form.get('categoria')
+        descripcion = request.form.get('descripcion')
+        
+        flash('¡Proyecto guardado con éxito!', 'success')
+        return redirect(url_for('explorar'))
+
     return render_template('subir_proyecto.html')
 
 @app.route('/perfil')

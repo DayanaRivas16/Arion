@@ -1,0 +1,179 @@
+{% extends 'base.html' %}
+
+{% block title %}Publicar Proyecto - ARION{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="card border-0 shadow-sm rounded-4 p-4 p-md-5 mx-auto" style="max-width: 800px;">
+    
+    <h2 class="fw-bold text-dark mb-4 text-center">Publicar un Proyecto</h2>
+
+    <!-- Aviso dinámico si falta llenar campos -->
+    <div id="form-alert" class="alert alert-danger alert-dismissible fade show" role="alert" style="display: none;">
+       Debes llenar todos los campos obligatorios de este paso para continuar.
+    </div>
+
+    <!-- Indicador de pasos -->
+    <div class="d-flex justify-content-center align-items-center gap-3 mb-4">
+      <div class="step-number active px-3 py-1 rounded-pill bg-primary text-white fw-bold" id="ind-1">1</div>
+      <div class="step-number px-3 py-1 rounded-pill bg-light text-muted fw-bold" id="ind-2">2</div>
+      <div class="step-number px-3 py-1 rounded-pill bg-light text-muted fw-bold" id="ind-3">3</div>
+      <div class="step-number px-3 py-1 rounded-pill bg-light text-muted fw-bold" id="ind-4">4</div>
+    </div>
+
+    <!-- Formulario -->
+    <form id="projectForm" action="{{ url_for('subir') }}" method="POST" enctype="multipart/form-data">
+      
+      <!-- PASO 1 -->
+      <div class="step-content active" id="step-1">
+        <h4 class="fs-5 fw-semibold text-dark mb-3">Paso 1: Información Básica</h4>
+        
+        <div class="mb-3">
+          <label for="titulo" class="form-label">Título del Proyecto <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="titulo" name="titulo" required placeholder="Ej. Sistema de Alarma Visual">
+        </div>
+
+        <div class="mb-3">
+          <label for="categoria" class="form-label">Categoría <span class="text-danger">*</span></label>
+          <select class="form-select" id="categoria" name="categoria" required>
+            <option value="">-- Selecciona una categoría --</option>
+            <option value="tecnologia">Tecnología y Software</option>
+            <option value="ciencia">Ciencia y Medio Ambiente</option>
+            <option value="arte">Arte y Diseño</option>
+            <option value="inges">Ingeniería</option>
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label for="descripcion" class="form-label">Descripción <span class="text-danger">*</span></label>
+          <textarea class="form-control" id="descripcion" name="descripcion" rows="3" required placeholder="Describe brevemente de qué trata el proyecto..."></textarea>
+        </div>
+      </div>
+
+      <!-- PASO 2 -->
+      <div class="step-content d-none" id="step-2">
+        <h4 class="fs-5 fw-semibold text-dark mb-3">Paso 2: Multimedia</h4>
+
+        <div class="mb-3">
+          <label for="imagen_principal" class="form-label">Imagen Destacada / Portada <span class="text-danger">*</span></label>
+          <input type="file" class="form-control" id="imagen_principal" name="imagen_principal" accept="image/*" required>
+          <div class="form-text">Sube una imagen representativa de tu proyecto.</div>
+        </div>
+
+        <div class="mb-3">
+          <label for="recursos" class="form-label">Recursos Adicionales (Enlaces o Archivos) <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="recursos" name="recursos" required placeholder="https://github.com/usuario/proyecto">
+        </div>
+      </div>
+
+      <!-- PASO 3 -->
+      <div class="step-content d-none" id="step-3">
+        <h4 class="fs-5 fw-semibold text-dark mb-3">Paso 3: Detalles</h4>
+
+        <div class="mb-3">
+          <label for="integrantes" class="form-label">Integrantes del Equipo <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="integrantes" name="integrantes" required placeholder="Ej. Ana Pérez, Carlos Gómez">
+        </div>
+
+        <div class="mb-3">
+          <label for="fecha" class="form-label">Fecha de Realización <span class="text-danger">*</span></label>
+          <input type="date" class="form-control" id="fecha" name="fecha" required>
+        </div>
+
+        <div class="mb-3">
+          <label for="etiquetas" class="form-label">Etiquetas <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="etiquetas" name="etiquetas" required placeholder="Python, IA, Reciclaje">
+        </div>
+      </div>
+
+      <!-- PASO 4 -->
+      <div class="step-content d-none" id="step-4">
+        <h4 class="fs-5 fw-semibold text-dark mb-3">Paso 4: Publicación</h4>
+        <p class="text-muted">Revisa los datos antes de enviar. Al guardar, el proyecto quedará asociado a tu perfil como autor.</p>
+        
+        <div class="mb-3">
+          <label for="estado" class="form-label">Estado de Publicación <span class="text-danger">*</span></label>
+          <select class="form-select" id="estado" name="estado" required>
+            <option value="">-- Selecciona un estado --</option>
+            <option value="publicado">Público (Visible para la comunidad)</option>
+            <option value="borrador">Borrador (Privado)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Controles -->
+      <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+        <button type="button" class="btn btn-outline-secondary px-4 rounded-pill" id="prevBtn" onclick="changeStep(-1)" disabled>Anterior</button>
+        <button type="button" class="btn btn-primary px-4 rounded-pill" id="nextBtn" onclick="changeStep(1)">Siguiente</button>
+        <button type="submit" class="btn btn-success px-4 rounded-pill" id="submitBtn" style="display: none;">Guardar Proyecto</button>
+      </div>
+
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  let currentStep = 1;
+  const totalSteps = 4;
+
+  function changeStep(delta) {
+    const alertBox = document.getElementById('form-alert');
+    
+    if (delta === 1 && !validateCurrentStep()) {
+      alertBox.style.display = 'block';
+      return;
+    } else {
+      alertBox.style.display = 'none';
+    }
+
+    // Ocultar paso actual
+    const currentStepEl = document.getElementById(`step-${currentStep}`);
+    currentStepEl.classList.remove('active');
+    currentStepEl.classList.add('d-none');
+
+    const currentInd = document.getElementById(`ind-${currentStep}`);
+    currentInd.classList.remove('active', 'bg-primary', 'text-white');
+    currentInd.classList.add('bg-light', 'text-muted');
+    
+    if (delta > 0) {
+      currentInd.classList.add('completed');
+    }
+
+    currentStep += delta;
+
+    // Mostrar nuevo paso
+    const nextStepEl = document.getElementById(`step-${currentStep}`);
+    nextStepEl.classList.remove('d-none');
+    nextStepEl.classList.add('active');
+
+    const nextInd = document.getElementById(`ind-${currentStep}`);
+    nextInd.classList.remove('bg-light', 'text-muted');
+    nextInd.classList.add('active', 'bg-primary', 'text-white');
+
+    document.getElementById('prevBtn').disabled = (currentStep === 1);
+    
+    if (currentStep === totalSteps) {
+      document.getElementById('nextBtn').style.display = 'none';
+      document.getElementById('submitBtn').style.display = 'inline-block';
+    } else {
+      document.getElementById('nextBtn').style.display = 'inline-block';
+      document.getElementById('submitBtn').style.display = 'none';
+    }
+  }
+
+  function validateCurrentStep() {
+    const currentStepContainer = document.getElementById(`step-${currentStep}`);
+    const requiredInputs = currentStepContainer.querySelectorAll('[required]');
+    
+    for (let input of requiredInputs) {
+      if (!input.value.trim()) {
+        input.focus();
+        return false;
+      }
+    }
+    return true;
+  }
+</script>
+{% endblock %}
