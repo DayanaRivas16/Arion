@@ -1,8 +1,237 @@
 {% extends 'base.html' %}
+
 {% block title %}Explorar Proyectos - ARION{% endblock %}
+
 {% block content %}
-<div class="container py-4">
-  <h2 class="fw-bold text-dark mb-4">Proyectos de la Comunidad</h2>
-  <p class="text-muted">Aquí se mostrarán todos los proyectos publicados pronto.</p>
+<div class="min-h-screen bg-light font-inter">
+
+    <section class="py-5 border-b bg-white" style="background: linear-gradient(135deg, rgba(13, 110, 253, 0.05), rgba(13, 110, 253, 0.1));">
+        <div class="container max-w-7xl">
+            <div class="row align-items-center justify-content-between g-4">
+                <div class="col-12 col-md-8 text-center text-md-start">
+                    <h1 class="fw-black text-dark display-6">Explorar <span class="text-primary">proyectos</span></h1>
+                    <p class="text-muted mt-2 lead">Descubre los mejores proyectos de nuestra comunidad</p>
+                </div>
+                <div class="col-12 col-md-4 text-center text-md-end">
+                    <img
+                        src="https://media.base44.com/images/public/6a0b20e9963ca6f1bc80b187/00ac705a2_leo_secundario_sinBG.png"
+                        alt="Lemi"
+                        class="img-fluid object-contain"
+                        style="max-height: 120px;"
+                    />
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="container max-w-7xl py-5">
+        
+        <div class="row g-3 mb-4 align-items-center">
+            <div class="col-12 col-lg-6">
+                <div class="position-relative">
+                    <span class="position-absolute top-50 start-0 translate-middle-y ps-3 text-muted">
+                        <i class="bi bi-search"></i>
+                    </span>
+                    <input 
+                        id="search-input"
+                        type="text" 
+                        class="form-control rounded-4 shadow-sm border-light" 
+                        placeholder="Buscar proyectos o autores..." 
+                        style="height: 46px; padding-left: 42px;"
+                    >
+                </div>
+            </div>
+            
+            <div class="col-12 col-sm-6 col-lg-2">
+                <button class="btn btn-white bg-white border w-100 rounded-4 d-flex align-items-center justify-content-center gap-2 shadow-sm" style="height: 46px;">
+                    <i class="bi bi-sliders"></i> Filtros
+                </button>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-2">
+                <button class="btn btn-white bg-white border w-100 rounded-4 d-flex align-items-center justify-content-center gap-2 shadow-sm" style="height: 46px;">
+                    Más recientes <i class="bi bi-chevron-down small"></i>
+                </button>
+            </div>
+
+            <div class="col-12 col-sm-12 col-lg-2 d-flex justify-content-lg-end">
+                <div class="btn-group bg-white p-1 rounded-4 border shadow-sm w-100 w-lg-auto" role="group">
+                    <button type="button" id="btn-grid" class="btn btn-sm rounded-3 active-view px-3"><i class="bi bi-grid-3x3-gap-fill"></i></button>
+                    <button type="button" id="btn-list" class="btn btn-sm text-muted rounded-3 px-3"><i class="bi bi-list-task"></i></button>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2 flex-wrap mb-4 overflow-x-auto pb-2" id="category-container">
+            <button class="btn btn-primary rounded-pill px-4 btn-cat active" data-category="Todos">Todos</button>
+            <button class="btn btn-light text-muted border-0 rounded-pill px-4 btn-cat" data-category="Tecnología">Tecnología</button>
+            <button class="btn btn-light text-muted border-0 rounded-pill px-4 btn-cat" data-category="Diseño">Diseño</button>
+            <button class="btn btn-light text-muted border-0 rounded-pill px-4 btn-cat" data-category="IA">IA</button>
+            <button class="btn btn-light text-muted border-0 rounded-pill px-4 btn-cat" data-category="Sostenibilidad">Sostenibilidad</button>
+            <button class="btn btn-light text-muted border-0 rounded-pill px-4 btn-cat" data-category="Educación">Educación</button>
+            <button class="btn btn-light text-muted border-0 rounded-pill px-4 btn-cat" data-category="Salud">Salud</button>
+            <button class="btn btn-light text-muted border-0 rounded-pill px-4 btn-cat" data-category="Arte">Arte</button>
+            <button class="btn btn-light text-muted border-0 rounded-pill px-4 btn-cat" data-category="Ciencia">Ciencia</button>
+        </div>
+
+        <p class="text-muted small mb-4" id="results-count">9 proyectos encontrados</p>
+
+        <div id="projects-wrapper" class="row g-4 row-cols-1 row-cols-sm-2 row-cols-lg-3">
+            </div>
+
+        <div class="d-flex justify-content-center mt-5">
+            <button class="btn btn-outline-dark rounded-pill px-5 fw-medium shadow-sm" style="height: 46px;">Cargar más proyectos</button>
+        </div>
+    </div>
 </div>
+
+<script>
+    // Datos en duro heredados de tu arreglo original
+    const projects = [
+      { id: 1, title: "EcoHouse", category: "Sostenibilidad", author: "Ana Gómez", avatar: "AG", rating: 4.8, views: 125, likes: 34, image: "https://images.unsplash.com/photo-1518780664697-55e3ad937233?w=500&h=300&fit=crop", featured: true },
+      { id: 2, title: "TaskFlow", category: "Tecnología", author: "Carlos Ruiz", avatar: "CR", rating: 4.7, views: 98, likes: 21, image: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=500&h=300&fit=crop", featured: false },
+      { id: 3, title: "Asistente IA", category: "IA", author: "María López", avatar: "ML", rating: 4.9, views: 210, likes: 67, image: "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=500&h=300&fit=crop", featured: true },
+      { id: 4, title: "Mano Háptica", category: "Salud", author: "Diego Torres", avatar: "DT", rating: 4.6, views: 76, likes: 18, image: "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=500&h=300&fit=crop", featured: false },
+      { id: 5, title: "AquaPure", category: "Ciencia", author: "Laura Vega", avatar: "LV", rating: 4.5, views: 89, likes: 22, image: "https://images.unsplash.com/photo-1559825481-12a05cc00344?w=500&h=300&fit=crop", featured: false },
+      { id: 6, title: "NeuroLearn", category: "Educación", author: "Pedro Mas", avatar: "PM", rating: 4.7, views: 143, likes: 41, image: "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=500&h=300&fit=crop", featured: true },
+      { id: 7, title: "BioScan", category: "Salud", author: "Sofía Chan", avatar: "SC", rating: 4.4, views: 62, likes: 15, image: "https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?w=500&h=300&fit=crop", featured: false },
+      { id: 8, title: "UrbanGreen", category: "Sostenibilidad", author: "Rafael Kim", avatar: "RK", rating: 4.6, views: 105, likes: 29, image: "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=500&h=300&fit=crop", featured: false },
+      { id: 9, title: "PixelArt Studio", category: "Arte", author: "Carla Font", avatar: "CF", rating: 4.8, views: 178, likes: 55, image: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=500&h=300&fit=crop", featured: true },
+    ];
+
+    let activeCategory = "Todos";
+    let viewMode = "grid";
+    let searchQuery = "";
+    let likedIds = [];
+
+    const wrapper = document.getElementById('projects-wrapper');
+    const searchInput = document.getElementById('search-input');
+    const resultsCount = document.getElementById('results-count');
+
+    // Renderizador de Tarjetas
+    function renderProjects() {
+        const filtered = projects.filter(p => {
+            const matchCat = activeCategory === "Todos" || p.category === activeCategory;
+            const matchSearch = p.title.toLowerCase().includes(searchQuery.toLowerCase()) || p.author.toLowerCase().includes(searchQuery.toLowerCase());
+            return matchCat && matchSearch;
+        });
+
+        resultsCount.textContent = `${filtered.length} proyectos encontrados`;
+        wrapper.innerHTML = "";
+
+        if(viewMode === "grid") {
+            wrapper.className = "row g-4 row-cols-1 row-cols-sm-2 row-cols-lg-3";
+        } else {
+            wrapper.className = "d-flex flex-column gap-3";
+        }
+
+        filtered.forEach(p => {
+            const isLiked = likedIds.includes(p.id);
+            const cardHtml = viewMode === "grid" ? `
+                <div class="col">
+                    <div class="card h-100 border-0 rounded-4 shadow-sm overflow-hidden custom-project-card" onclick="window.location.href='/proyecto/${p.id}'">
+                        <div class="position-relative overflow-hidden" style="height: 180px;">
+                            <img src="${p.image}" class="w-100 h-100 object-cover card-img-anim" alt="${p.title}">
+                            ${p.featured ? '<span class="position-absolute top-0 start-0 m-3 badge bg-warning text-dark rounded-pill fw-bold">⭐ Destacado</span>' : ''}
+                            <button onclick="event.stopPropagation(); toggleLike(${p.id})" class="position-absolute top-0 end-0 m-3 btn btn-light rounded-circle shadow-sm d-flex align-items-center justify-content-center p-0" style="width: 34px; height: 34px;">
+                                <i class="bi ${isLiked ? 'bi-heart-fill text-danger' : 'bi-heart text-muted'}"></i>
+                            </button>
+                        </div>
+                        <div class="card-body p-4 flex-grow-1 d-flex flex-column justify-content-between">
+                            <div>
+                                <h5 class="card-title fw-bold text-dark mb-1 card-title-hover">${p.title}</h5>
+                                <span class="badge bg-secondary-subtle text-secondary rounded-2 px-2.5 py-1 text-xs">${p.category}</span>
+                            </div>
+                            <div class="d-flex align-items-center justify-content-between mt-4 pt-3 border-t">
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="rounded-circle bg-primary text-white text-xs fw-bold d-flex align-items-center justify-content-center" style="width: 26px; height: 26px; font-size: 10px;">${p.avatar}</div>
+                                    <span class="text-muted small">${p.author}</span>
+                                </div>
+                                <div class="d-flex align-items-center gap-2 text-muted small" style="font-size: 11px;">
+                                    <span><i class="bi bi-star-fill text-warning me-0.5"></i>${p.rating}</span>
+                                    <span><i class="bi bi-eye me-0.5"></i>${p.views}</span>
+                                    <span><i class="bi bi-heart me-0.5"></i>${p.likes}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            ` : `
+                <div class="card border-0 rounded-4 shadow-sm overflow-hidden custom-project-card w-100" onclick="window.location.href='/proyecto/${p.id}'">
+                    <div class="d-flex flex-column flex-sm-row">
+                        <div class="position-relative overflow-hidden" style="width: 200px; height: 140px; flex-shrink: 0;">
+                            <img src="${p.image}" class="w-100 h-100 object-cover card-img-anim" alt="${p.title}">
+                            ${p.featured ? '<span class="position-absolute top-0 start-0 m-2 badge bg-warning text-dark rounded-pill fw-bold" style="font-size:10px;">⭐</span>' : ''}
+                        </div>
+                        <div class="p-4 flex-grow-1 d-flex flex-column justify-content-between">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h5 class="card-title fw-bold text-dark mb-1 card-title-hover">${p.title}</h5>
+                                    <span class="badge bg-secondary-subtle text-secondary rounded-2 px-2.5 py-1 text-xs">${p.category}</span>
+                                </div>
+                                <button onclick="event.stopPropagation(); toggleLike(${p.id})" class="btn btn-light rounded-circle shadow-sm d-flex align-items-center justify-content-center p-0" style="width: 34px; height: 34px;">
+                                    <i class="bi ${isLiked ? 'bi-heart-fill text-danger' : 'bi-heart text-muted'}"></i>
+                                </button>
+                            </div>
+                            <div class="d-flex align-items-center justify-content-between mt-3 pt-2 border-t">
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="rounded-circle bg-primary text-white text-xs fw-bold d-flex align-items-center justify-content-center" style="width: 24px; height: 24px; font-size: 10px;">${p.avatar}</div>
+                                    <span class="text-muted small">${p.author}</span>
+                                </div>
+                                <div class="d-flex align-items-center gap-2 text-muted small" style="font-size: 11px;">
+                                    <span><i class="bi bi-star-fill text-warning me-0.5"></i>${p.rating}</span>
+                                    <span><i class="bi bi-eye me-0.5"></i>${p.views}</span>
+                                    <span><i class="bi bi-heart me-0.5"></i>${p.likes}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            wrapper.insertAdjacentHTML('beforeend', cardHtml);
+        });
+    }
+
+    // Funciones de Controladores de Estado (Simulan React)
+    function toggleLike(id) {
+        if(likedIds.includes(id)){
+            likedIds = likedIds.filter(x => x !== id);
+        } else {
+            likedIds.push(id);
+        }
+        renderProjects();
+    }
+
+    searchInput.addEventListener('input', (e) => {
+        searchQuery = e.target.value;
+        renderProjects();
+    });
+
+    document.querySelectorAll('.btn-cat').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            document.querySelectorAll('.btn-cat').forEach(b => {
+                b.className = "btn btn-light text-muted border-0 rounded-pill px-4 btn-cat";
+            });
+            e.target.className = "btn btn-primary rounded-pill px-4 btn-cat active";
+            activeCategory = e.target.getAttribute('data-category');
+            renderProjects();
+        });
+    });
+
+    document.getElementById('btn-grid').addEventListener('click', (e) => {
+        viewMode = "grid";
+        document.getElementById('btn-grid').className = "btn btn-sm rounded-3 active-view px-3";
+        document.getElementById('btn-list').className = "btn btn-sm text-muted rounded-3 px-3";
+        renderProjects();
+    });
+
+    document.getElementById('btn-list').addEventListener('click', (e) => {
+        viewMode = "list";
+        document.getElementById('btn-list').className = "btn btn-sm rounded-3 active-view px-3";
+        document.getElementById('btn-grid').className = "btn btn-sm text-muted rounded-3 px-3";
+        renderProjects();
+    });
+
+    // Carga inicial
+    renderProjects();
+</script>
 {% endblock %}

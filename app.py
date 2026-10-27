@@ -6,11 +6,26 @@ from psycopg2.extras import RealDictCursor
 from authlib.integrations.flask_client import OAuth
 from flask_mail import Mail, Message
 import os
+from werkzeug.utils import secure_filename
+from datetime import datetime
+import uuid
 
 load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY')
+
+
+# ======================================================
+# CONFIGURACIÓN DE CARGA DE ARCHIVOS    
+app.config['UPLOAD_FOLDER'] = os.path.join(
+    app.root_path, 'static', 'uploads', 'proyectos'
+)
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5 MB
+
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+EXTENSIONES_PERMITIDAS = {'png', 'jpg', 'jpeg', 'webp'}
 
 # ======================================================
 # CONFIGURACIÓN DEL CORREO
@@ -97,7 +112,7 @@ def test_db():
         }), 500
 
 # =====================================================================
-# CONTROLES DE ACCESO Y DEMÁS RUTAS... (Tu código se mantiene abajo)
+# CONTROLES DE ACCESO Y DEMÁS RUTAS... 
 # =====================================================================
 # =====================================================================
 # CONTROLES DE ACCESO 
@@ -287,14 +302,6 @@ def google_callback():
 
         return redirect(url_for('login'))
 
-@app.route('/forgot-password')
-def forgot_password():
-    return render_template('forgot_password.html')
-
-@app.route('/reset-password')
-def reset_password():
-    return render_template('reset_password.html')
-
 
 # =====================================================================
 # RUTAS PROTEGIDAS 
@@ -310,35 +317,274 @@ def home():
 def explorar():
     return render_template('explorar_proyectos.html')
 
+
+# ==========================================================
+# GUARDAR ETIQUETAS DEL PROYECTO
+# ==========================================================
+
+def guardar_etiquetas(cursor, id_proyecto, texto_etiquetas):
+    nombres = {
+        nombre.strip().lower(): nombre.strip()
+        for nombre in texto_etiquetas.split(',')
+        if nombre.strip()
+    }
+
+    for nombre_normalizado, nombre in nombres.items():
+        cursor.execute("""
+            SELECT id_etiqueta
+            FROM etiquetas
+            WHERE LOWER(nombre_etiqueta) = %s
+            LIMIT 1;
+        """, (nombre_normalizado,))
+
+        etiqueta = cursor.fetchone()
+
+        if etiqueta:
+            id_etiqueta = etiqueta['id_etiqueta']
+        else:
+            cursor.execute("""
+                INSERT INTO etiquetas (nombre_etiqueta)
+                VALUES (%s)
+                RETURNING id_etiqueta;
+            """, (nombre,))
+
+            etiqueta = cursor.fetchone()
+            id_etiqueta = etiqueta['id_etiqueta']
+
+        cursor.execute("""
+            INSERT INTO proyectos_etiquetas (id_proyecto, id_etiqueta)
+            SELECT %s, %s
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM proyectos_etiquetas
+                WHERE id_proyecto = %s
+                  AND id_etiqueta = %s
+            );
+        """, (
+            id_proyecto,
+            id_etiqueta,
+            id_proyecto,
+            id_etiqueta
+        ))
+
+
+# ==========================================================
+# RUTA COMPLETA PARA SUBIR PROYECTOS
+# ==========================================================
+
 @app.route('/subir', methods=['GET', 'POST'])
 @login_required
 def subir():
-    if request.method == 'POST':
-        # Aquí procesas los datos del formulario
-        titulo = request.form.get('titulo')
-        categoria = request.form.get('categoria')
-        descripcion = request.form.get('descripcion')
-        
-        flash('¡Proyecto guardado con éxito!', 'success')
-        return redirect(url_for('explorar'))
 
-    return render_template('subir_proyecto.html')
+    if request.method == 'GET':
+        return render_template('subir_proyecto.html')
 
+    conn = None
+    cursor = None
+    ruta_guardada = None
+
+    try:
+        # 1. Recibir los datos del formulario
+        titulo = request.form.get('titulo', '').strip()
+        categoria = request.form.get('categoria', '').strip()
+        descripcion = request.form.get('descripcion', '').strip()
+        recursos = request.form.get('recursos', '').strip()
+        integrantes = request.form.get('integrantes', '').strip()
+        fecha = request.form.get('fecha', '').strip()
+        etiquetas = request.form.get('etiquetas', '').strip()
+        estado_formulario = request.form.get('estado', '').strip()
+
+        imagen = request.files.get('imagen_principal')
+
+        # 2. Validar los campos obligatorios
+        if not all([
+            titulo,
+            categoria,
+            descripcion,
+            recursos,
+            integrantes,
+            fecha,
+            etiquetas,
+            estado_formulario
+        ]):
+            flash('Completa todos los campos obligatorios.', 'warning')
+            return redirect(url_for('subir'))
+
+        if estado_formulario not in ('publicado', 'borrador'):
+            flash('Selecciona un estado válido.', 'warning')
+            return redirect(url_for('subir'))
+
+        # 3. Validar la fecha
+        from datetime import datetime
+
+        try:
+            datetime.strptime(fecha, '%Y-%m-%d')
+        except ValueError:
+            flash('La fecha de realización no es válida.', 'warning')
+            return redirect(url_for('subir'))
+
+        # 4. Validar la imagen
+        if not imagen or not imagen.filename:
+            flash('Selecciona una imagen de portada.', 'warning')
+            return redirect(url_for('subir'))
+
+        from werkzeug.utils import secure_filename
+        import uuid
+
+        nombre_seguro = secure_filename(imagen.filename)
+
+        if '.' not in nombre_seguro:
+            flash('El archivo no tiene una extensión válida.', 'warning')
+            return redirect(url_for('subir'))
+
+        extension = nombre_seguro.rsplit('.', 1)[1].lower()
+        extensiones_permitidas = {'jpg', 'jpeg', 'png', 'webp'}
+
+        if extension not in extensiones_permitidas:
+            flash('Usa una imagen JPG, JPEG, PNG o WEBP.', 'warning')
+            return redirect(url_for('subir'))
+
+        # 5. Preparar la carpeta y el nombre de la imagen
+        carpeta = os.path.join(
+            app.root_path,
+            'static',
+            'uploads',
+            'proyectos'
+        )
+
+        os.makedirs(carpeta, exist_ok=True)
+
+        nombre_archivo = f'{uuid.uuid4().hex}.{extension}'
+        ruta_guardada = os.path.join(carpeta, nombre_archivo)
+        ruta_relativa = f'uploads/proyectos/{nombre_archivo}'
+
+        # 6. Conectar con PostgreSQL
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # 7. Buscar la categoría seleccionada
+        cursor.execute("""
+            SELECT id_categoria
+            FROM categorias
+            WHERE LOWER(nombre_categoria) = LOWER(%s)
+            LIMIT 1;
+        """, (categoria,))
+
+        fila_categoria = cursor.fetchone()
+
+        if not fila_categoria:
+            flash(
+                'La categoría seleccionada no existe en la base de datos.',
+                'warning'
+            )
+            return redirect(url_for('subir'))
+
+        id_categoria = fila_categoria['id_categoria']
+
+        # 8. Obtener el usuario que publica el proyecto
+        cursor.execute("""
+            SELECT nombre_completo
+            FROM usuarios
+            WHERE id_usuario = %s;
+        """, (session['user_id'],))
+
+        usuario = cursor.fetchone()
+
+        if not usuario:
+            raise Exception('No se encontró el usuario de la sesión.')
+
+        profesor_a_cargo = usuario['nombre_completo']
+
+        # 9. Guardar la imagen
+        imagen.save(ruta_guardada)
+
+        # 10. Insertar el proyecto
+        cursor.execute("""
+            INSERT INTO proyectos (
+                titulo,
+                descripcion,
+                imagen_portada,
+                profesor_a_cargo,
+                grado,
+                estado,
+                es_destacado,
+                vistas_count,
+                likes_count,
+                calificacion,
+                id_usuario,
+                id_categoria,
+                fecha_creacion
+            )
+            VALUES (
+                %s, %s, %s, %s, %s, %s,
+                FALSE, 0, 0, 5.0, %s, %s,
+                CURRENT_TIMESTAMP
+            )
+            RETURNING id_proyecto;
+        """, (
+            titulo,
+            descripcion,
+            ruta_relativa,
+            profesor_a_cargo,
+            'No especificado',
+            'Publicado' if estado_formulario == 'publicado' else 'Borrador',
+            session['user_id'],
+            id_categoria
+        ))
+
+        resultado = cursor.fetchone()
+        id_proyecto = resultado['id_proyecto']
+
+        # 11. Guardar las etiquetas y relacionarlas con el proyecto
+        guardar_etiquetas(cursor, id_proyecto, etiquetas)
+
+        # 12. Confirmar todos los cambios
+        conn.commit()
+
+        flash('¡Proyecto guardado correctamente!', 'success')
+
+        return redirect(url_for('ver_proyecto', id=id_proyecto))
+
+    except Exception:
+        if conn:
+            conn.rollback()
+
+        if ruta_guardada and os.path.exists(ruta_guardada):
+            os.remove(ruta_guardada)
+
+        app.logger.exception('Error al guardar el proyecto')
+
+        flash(
+            'No se pudo guardar el proyecto. Revisa la terminal de Flask.',
+            'error'
+        )
+
+        return redirect(url_for('subir'))
+
+    finally:
+        if cursor:
+            cursor.close()
+
+        if conn:
+            conn.close()
+
+
+# Ruta del perfil
 @app.route('/perfil')
 @login_required
 def perfil():
     return render_template('mi_perfil.html')
+
+
+# ======================================================
+# RUTA DE RECURSOS
+# ======================================================
 
 @app.route('/recursos')
 @login_required
 def recursos():
     return render_template('recursos.html')
 
-# Ruta dinámica para ver un proyecto por su ID 
-@app.route('/proyecto/<int:id>')
-@login_required
-def ver_proyecto(id):
-    return render_template('ver_proyecto.html', proyecto_id=id)
 # =====================================================================
 # MANEJO DE ERRORES 
 # =====================================================================
