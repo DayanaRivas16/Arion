@@ -1,4 +1,4 @@
-from flask import Flask, render_template, redirect, url_for, session, flash, jsonify, request
+from flask import Flask, render_template, redirect, url_for, session, flash, jsonify, request, abort
 from dotenv import load_dotenv
 from functools import wraps
 import psycopg2
@@ -18,14 +18,21 @@ app.secret_key = os.getenv('SECRET_KEY')
 
 # ======================================================
 # CONFIGURACIÓN DE CARGA DE ARCHIVOS    
-app.config['UPLOAD_FOLDER'] = os.path.join(
-    app.root_path, 'static', 'uploads', 'proyectos'
-)
-app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5 MB
+# ======================================================
+
+app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static', 'uploads', 'proyectos')
+UPLOAD_DOCUMENTOS = os.path.join(app.root_path, 'static', 'uploads', 'documentos')
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024   # portada 5 MB + documentos 10 MB + texto
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs(UPLOAD_DOCUMENTOS, exist_ok=True)
 
 EXTENSIONES_PERMITIDAS = {'png', 'jpg', 'jpeg', 'webp'}
+EXTENSIONES_DOCUMENTOS = {'pdf', 'docx'}
+
+MAX_IMAGEN = 5 * 1024 * 1024
+MAX_TOTAL_DOCUMENTOS = 10 * 1024 * 1024
+MAX_DOCUMENTOS = 5
 
 # ======================================================
 # CONFIGURACIÓN DEL CORREO
@@ -306,16 +313,116 @@ def google_callback():
 # =====================================================================
 # RUTAS PROTEGIDAS 
 # =====================================================================
+def tarjetas_proyectos(cursor, solo_destacados, limite):
+    filtro = "AND p.es_destacado = TRUE" if solo_destacados else ""
+    cursor.execute(f"""
+        SELECT p.id_proyecto AS id, p.titulo,
+               COALESCE(c.nombre_categoria, 'Sin categoría') AS categoria,
+               COALESCE(u.nombre_completo, 'Autor desconocido') AS autor,
+               p.calificacion::float AS rating,
+               COALESCE(p.vistas_count, 0) AS vistas,
+               p.imagen_portada
+        FROM proyectos p
+        LEFT JOIN categorias c ON c.id_categoria = p.id_categoria
+        LEFT JOIN usuarios u ON u.id_usuario = p.id_usuario
+        WHERE LOWER(p.estado) = 'publicado' {filtro}
+        ORDER BY p.fecha_creacion DESC
+        LIMIT %s;
+    """, (limite,))
+    filas = cursor.fetchall()
+    for f in filas:
+        f['imagen'] = url_for('static', filename=f['imagen_portada']) if f['imagen_portada'] else ''
+    return filas
+
 
 @app.route('/')
 @login_required
 def home():
-    return render_template('home.html')
+    stats = {'proyectos': 0, 'usuarios': 0, 'destacados': 0}
+    proyectos = []
+    solo_recientes = False
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        cursor.execute("""
+            SELECT (SELECT COUNT(*) FROM proyectos WHERE LOWER(estado) = 'publicado') AS proyectos,
+                   (SELECT COUNT(*) FROM usuarios) AS usuarios,
+                   (SELECT COUNT(*) FROM proyectos WHERE LOWER(estado) = 'publicado' AND es_destacado) AS destacados;
+        """)
+        stats = cursor.fetchone()
+
+        proyectos = tarjetas_proyectos(cursor, True, 12)
+        if not proyectos:                       # si aún no hay destacados, se muestran los más recientes
+            proyectos = tarjetas_proyectos(cursor, False, 8)
+            solo_recientes = True
+    except Exception:
+        app.logger.exception('Error cargando el home')
+    finally:
+        if cursor: cursor.close()
+        if conn: conn.close()
+
+    return render_template('home.html', stats=stats, proyectos=proyectos, solo_recientes=solo_recientes)
 
 @app.route('/explorar')
 @login_required
 def explorar():
-    return render_template('explorar_proyectos.html')
+    filas = []
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("""
+            SELECT p.id_proyecto AS id,
+                   p.titulo,
+                   COALESCE(c.nombre_categoria, 'Sin categoría') AS categoria,
+                   COALESCE(u.nombre_completo, 'Autor desconocido') AS autor,
+                   p.calificacion::float AS rating,
+                   p.vistas_count AS vistas,
+                   p.likes_count AS likes,
+                   p.imagen_portada,
+                   p.es_destacado AS destacado,
+                   p.fecha_creacion
+            FROM proyectos p
+            LEFT JOIN categorias c ON c.id_categoria = p.id_categoria
+            LEFT JOIN usuarios u ON u.id_usuario = p.id_usuario
+            WHERE LOWER(p.estado) = 'publicado'
+            ORDER BY p.fecha_creacion DESC;
+        """)
+        filas = cursor.fetchall()
+    except Exception:
+        app.logger.exception('Error cargando proyectos')
+        flash('No se pudieron cargar los proyectos.', 'danger')
+    finally:
+        if cursor: cursor.close()
+        if conn: conn.close()
+
+    proyectos = []
+    for f in filas:
+        iniciales = ''.join(p[0] for p in f['autor'].split()[:2]).upper() or '?'
+        proyectos.append({
+            'id': f['id'],
+            'title': f['titulo'],
+            'category': f['categoria'],
+            'author': f['autor'],
+            'avatar': iniciales,
+            'rating': f['rating'],
+            'views': f['vistas'] or 0,
+            'likes': f['likes'] or 0,
+            'image': url_for('static', filename=f['imagen_portada']) if f['imagen_portada'] else '',
+            'featured': bool(f['destacado']),
+            'date': f['fecha_creacion'].timestamp() if f['fecha_creacion'] else 0,
+        })
+
+    return render_template('explorar_proyectos.html', proyectos=proyectos)
+
+@app.route('/acerca')
+@login_required
+def acerca():
+    return render_template('acerca.html')
 
 
 # ==========================================================
@@ -367,207 +474,415 @@ def guardar_etiquetas(cursor, id_proyecto, texto_etiquetas):
             id_etiqueta
         ))
 
+# ==========================================================
+# RUTAS DE VISTA DE PROYECTOS, LIKES Y VALORACIONES
+# ==========================================================
+
+@app.template_filter('iniciales')
+def iniciales(nombre):
+    return ''.join(p[0] for p in (nombre or '').split()[:2]).upper() or '?'
+
+
+@app.route('/proyecto/<int:id>')
+@login_required
+def ver_proyecto(id):
+    uid = session['user_id']
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cursor.execute("""
+            SELECT p.id_proyecto AS id, p.titulo, p.descripcion, p.imagen_portada AS imagen,
+                   p.profesor_a_cargo AS profesor, p.grado, p.estado,
+                   p.es_destacado AS destacado, p.vistas_count AS vistas, p.likes_count AS likes,
+                   p.calificacion::float AS rating, p.fecha_creacion AS fecha,
+                   p.id_usuario AS id_autor,
+                   COALESCE(c.nombre_categoria, 'Sin categoría') AS categoria,
+                   COALESCE(u.nombre_completo, 'Autor desconocido') AS autor_nombre,
+                   u.foto_perfil AS autor_foto,
+                   COALESCE((SELECT string_agg(e.nombre_etiqueta, ',' ORDER BY e.nombre_etiqueta)
+                             FROM proyectos_etiquetas pe
+                             JOIN etiquetas e ON e.id_etiqueta = pe.id_etiqueta
+                             WHERE pe.id_proyecto = p.id_proyecto), '') AS etiquetas
+            FROM proyectos p
+            LEFT JOIN categorias c ON c.id_categoria = p.id_categoria
+            LEFT JOIN usuarios u ON u.id_usuario = p.id_usuario
+            WHERE p.id_proyecto = %s;
+        """, (id,))
+        p = cursor.fetchone()
+        if not p:
+            abort(404)
+
+        es_autor = p['id_autor'] == uid
+        # Un borrador solo lo ve su autor
+        if (p['estado'] or '').lower() != 'publicado' and not es_autor:
+            abort(404)
+
+        # Suma una vista (no cuenta las del autor)
+        p['vistas'] = p['vistas'] or 0
+        if not es_autor:
+            cursor.execute("UPDATE proyectos SET vistas_count = COALESCE(vistas_count, 0) + 1 WHERE id_proyecto = %s;", (id,))
+            conn.commit()
+            p['vistas'] += 1
+
+        # Integrantes (el autor siempre aparece)
+        cursor.execute("""
+            SELECT u.id_usuario, u.nombre_completo AS nombre, u.foto_perfil AS foto, pc.rol_en_equipo AS rol
+            FROM proyecto_colaboradores pc
+            JOIN usuarios u ON u.id_usuario = pc.id_usuario
+            WHERE pc.id_proyecto = %s
+            ORDER BY (u.id_usuario = %s) DESC, u.nombre_completo;
+        """, (id, p['id_autor']))
+        integrantes = cursor.fetchall()
+        if p['id_autor'] and not any(i['id_usuario'] == p['id_autor'] for i in integrantes):
+            integrantes.insert(0, {'id_usuario': p['id_autor'], 'nombre': p['autor_nombre'],
+                                   'foto': p['autor_foto'], 'rol': 'Autor'})
+
+        # Documentos y enlace (el enlace se guarda como documento de tipo 'enlace')
+        cursor.execute("""
+            SELECT nombre_archivo AS nombre, url_archivo, tipo_documento AS tipo, tamano_bytes AS tamano
+            FROM documentos_proyecto WHERE id_proyecto = %s ORDER BY fecha_subida;
+        """, (id,))
+        enlace, documentos = '', []
+        for d in cursor.fetchall():
+            if (d['tipo'] or '').lower() == 'enlace':
+                if not enlace and d['url_archivo'].lower().startswith(('http://', 'https://')):
+                    enlace = d['url_archivo']
+            else:
+                d['url'] = url_for('static', filename=d['url_archivo'])
+                documentos.append(d)
+
+        # Likes, valoración y datos del autor
+        cursor.execute("SELECT EXISTS(SELECT 1 FROM proyecto_likes WHERE id_proyecto = %s AND id_usuario = %s) AS ya_like;", (id, uid))
+        ya_like = cursor.fetchone()['ya_like']
+
+        cursor.execute("SELECT puntuacion FROM proyecto_valoraciones WHERE id_proyecto = %s AND id_usuario = %s;", (id, uid))
+        fila = cursor.fetchone()
+        mi_valoracion = fila['puntuacion'] if fila else 0
+
+        cursor.execute("SELECT COUNT(*) AS total FROM proyecto_valoraciones WHERE id_proyecto = %s;", (id,))
+        total_valoraciones = cursor.fetchone()['total']
+
+        cursor.execute("SELECT COUNT(*) AS total FROM proyectos WHERE id_usuario = %s AND LOWER(estado) = 'publicado';", (p['id_autor'],))
+        proyectos_autor = cursor.fetchone()['total']
+    finally:
+        cursor.close()
+        conn.close()
+
+    proyecto = {
+        'id': p['id'], 'titulo': p['titulo'], 'descripcion': p['descripcion'],
+        'imagen': p['imagen'], 'profesor': p['profesor'], 'grado': p['grado'],
+        'estado': p['estado'] or '', 'destacado': p['destacado'], 'vistas': p['vistas'],
+        'likes': p['likes'] or 0, 'rating': p['rating'], 'fecha': p['fecha'],
+        'categoria': p['categoria'],
+        'etiquetas': [t for t in p['etiquetas'].split(',') if t],
+    }
+    autor = {'nombre': p['autor_nombre'], 'foto': p['autor_foto'], 'proyectos': proyectos_autor}
+
+    return render_template('ver_proyecto.html', proyecto=proyecto, autor=autor,
+                           integrantes=integrantes, documentos=documentos, enlace=enlace,
+                           ya_like=ya_like, mi_valoracion=mi_valoracion,
+                           total_valoraciones=total_valoraciones, es_autor=es_autor)
+
+
+@app.route('/proyecto/<int:id>/like', methods=['POST'])
+@login_required
+def toggle_like(id):
+    uid = session['user_id']
+    conn = cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("SELECT id_usuario, estado FROM proyectos WHERE id_proyecto = %s;", (id,))
+        p = cursor.fetchone()
+        if not p or ((p['estado'] or '').lower() != 'publicado' and p['id_usuario'] != uid):
+            return jsonify(error='Proyecto no encontrado.'), 404
+
+        cursor.execute("DELETE FROM proyecto_likes WHERE id_proyecto = %s AND id_usuario = %s;", (id, uid))
+        liked = cursor.rowcount == 0          # si no había like, ahora se agrega
+        if liked:
+            cursor.execute("INSERT INTO proyecto_likes (id_proyecto, id_usuario) VALUES (%s, %s) ON CONFLICT DO NOTHING;", (id, uid))
+
+        # Se recalcula desde la tabla para que el contador nunca se desfase
+        cursor.execute("""
+            UPDATE proyectos
+            SET likes_count = (SELECT COUNT(*) FROM proyecto_likes WHERE id_proyecto = %s)
+            WHERE id_proyecto = %s RETURNING likes_count;
+        """, (id, id))
+        likes = cursor.fetchone()['likes_count']
+        conn.commit()
+        return jsonify(liked=liked, likes=likes)
+    except Exception:
+        if conn: conn.rollback()
+        app.logger.exception('Error al registrar el like')
+        return jsonify(error='No se pudo registrar tu me gusta.'), 500
+    finally:
+        if cursor: cursor.close()
+        if conn: conn.close()
+
+
+@app.route('/proyecto/<int:id>/valorar', methods=['POST'])
+@login_required
+def valorar_proyecto(id):
+    uid = session['user_id']
+    datos = request.get_json(silent=True) or {}
+    try:
+        puntuacion = int(datos.get('puntuacion'))
+    except (TypeError, ValueError):
+        puntuacion = 0
+    if not 1 <= puntuacion <= 5:
+        return jsonify(error='La valoración debe ser de 1 a 5.'), 400
+
+    conn = cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("SELECT id_usuario, estado FROM proyectos WHERE id_proyecto = %s;", (id,))
+        p = cursor.fetchone()
+        if not p or (p['estado'] or '').lower() != 'publicado':
+            return jsonify(error='Proyecto no encontrado.'), 404
+        if p['id_usuario'] == uid:
+            return jsonify(error='No puedes valorar tu propio proyecto.'), 403
+
+        cursor.execute("""
+            INSERT INTO proyecto_valoraciones (id_proyecto, id_usuario, puntuacion)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (id_proyecto, id_usuario)
+            DO UPDATE SET puntuacion = EXCLUDED.puntuacion, fecha_valoracion = CURRENT_TIMESTAMP;
+        """, (id, uid, puntuacion))
+
+        cursor.execute("""
+            UPDATE proyectos
+            SET calificacion = (SELECT ROUND(AVG(puntuacion)::numeric, 1)
+                                FROM proyecto_valoraciones WHERE id_proyecto = %s)
+            WHERE id_proyecto = %s
+            RETURNING calificacion::float AS promedio,
+                      (SELECT COUNT(*) FROM proyecto_valoraciones WHERE id_proyecto = %s) AS total;
+        """, (id, id, id))
+        resultado = cursor.fetchone()
+        conn.commit()
+        return jsonify(promedio=resultado['promedio'], total=resultado['total'])
+    except Exception:
+        if conn: conn.rollback()
+        app.logger.exception('Error al valorar')
+        return jsonify(error='No se pudo guardar tu valoración.'), 500
+    finally:
+        if cursor: cursor.close()
+        if conn: conn.close()
+
 
 # ==========================================================
 # RUTA COMPLETA PARA SUBIR PROYECTOS
 # ==========================================================
 
+def info_archivo(archivo):
+    """Extensión, tamaño y primeros bytes de un archivo subido."""
+    extension = os.path.splitext(archivo.filename or '')[1].lstrip('.').lower()
+    archivo.stream.seek(0, os.SEEK_END)
+    tamano = archivo.stream.tell()
+    archivo.stream.seek(0)
+    cabecera = archivo.stream.read(12)
+    archivo.stream.seek(0)
+    return extension, tamano, cabecera
+
+
+def contenido_valido(extension, cabecera):
+    """Comprueba que el contenido real coincida con la extensión."""
+    if extension == 'png':
+        return cabecera.startswith(b'\x89PNG')
+    if extension in ('jpg', 'jpeg'):
+        return cabecera.startswith(b'\xff\xd8')
+    if extension == 'webp':
+        return cabecera[:4] == b'RIFF' and cabecera[8:12] == b'WEBP'
+    if extension == 'pdf':
+        return cabecera.startswith(b'%PDF')
+    if extension == 'docx':
+        return cabecera.startswith(b'PK\x03\x04')
+    return False
+
+
+def datos_formulario(uid):
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cursor.execute("SELECT id_categoria AS id, nombre_categoria AS nombre FROM categorias ORDER BY nombre_categoria;")
+        categorias = cursor.fetchall()
+        cursor.execute("""
+            SELECT id_usuario AS id, nombre_completo AS nombre, foto_perfil AS foto
+            FROM usuarios WHERE id_usuario <> %s ORDER BY nombre_completo;
+        """, (uid,))
+        usuarios = cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+    return {'categorias': categorias, 'usuarios': usuarios}
+
+
 @app.route('/subir', methods=['GET', 'POST'])
 @login_required
 def subir():
+    uid = session['user_id']
 
     if request.method == 'GET':
-        return render_template('subir_proyecto.html')
+        return render_template('subir_proyecto.html', **datos_formulario(uid))
 
+    def volver(mensaje):
+        flash(mensaje, 'danger')
+        return redirect(url_for('subir'))
+
+    # 1. Leer el formulario
+    titulo = request.form.get('titulo', '').strip()
+    descripcion = request.form.get('descripcion', '').strip()
+    profesor = request.form.get('profesor', '').strip()
+    grado = request.form.get('grado', '').strip()
+    enlace = request.form.get('enlace', '').strip()
+    estado_form = request.form.get('estado', '').strip().lower()
+    etiquetas = ','.join(
+        [t.strip()[:30] for t in request.form.get('etiquetas', '').split(',') if t.strip()][:10]
+    )
+    try:
+        id_categoria = int(request.form.get('categoria', ''))
+    except ValueError:
+        id_categoria = None
+    ids_integrantes = {int(v) for v in request.form.getlist('integrantes') if v.isdigit()}
+    ids_integrantes.discard(uid)
+
+    imagen = request.files.get('imagen_portada')
+    documentos = [d for d in request.files.getlist('documentos') if d and d.filename]
+
+    # 2. Validar texto
+    if not all([titulo, descripcion, profesor, grado, etiquetas]) or id_categoria is None:
+        return volver('Completa todos los campos obligatorios.')
+    if len(titulo) > 200 or len(profesor) > 150 or len(grado) > 50:
+        return volver('Alguno de los textos es demasiado largo.')
+    if estado_form not in ('publicado', 'borrador'):
+        return volver('Selecciona un estado válido.')
+
+    if enlace:
+        if not enlace.lower().startswith(('http://', 'https://')):
+            enlace = 'https://' + enlace
+        if len(enlace) > 500 or ' ' in enlace or '.' not in enlace:
+            return volver('El enlace del proyecto no es válido.')
+
+    # 3. Validar la portada
+    if not imagen or not imagen.filename:
+        return volver('Elige una imagen de portada.')
+    ext_img, tam_img, cab_img = info_archivo(imagen)
+    if ext_img not in EXTENSIONES_PERMITIDAS or not contenido_valido(ext_img, cab_img):
+        return volver('La portada debe ser una imagen PNG, JPG o WEBP.')
+    if tam_img > MAX_IMAGEN:
+        return volver('La portada supera los 5 MB.')
+
+    # 4. Validar los documentos
+    if len(documentos) > MAX_DOCUMENTOS:
+        return volver(f'Solo puedes subir hasta {MAX_DOCUMENTOS} documentos.')
+
+    docs_validos = []
+    total_docs = 0
+    for d in documentos:
+        ext_doc, tam_doc, cab_doc = info_archivo(d)
+        if ext_doc not in EXTENSIONES_DOCUMENTOS or not contenido_valido(ext_doc, cab_doc):
+            return volver(f'"{d.filename}" no es un PDF o DOCX válido.')
+        total_docs += tam_doc
+        docs_validos.append((d, ext_doc, tam_doc))
+
+    if total_docs > MAX_TOTAL_DOCUMENTOS:
+        return volver('Los documentos suman más de 10 MB. Quita alguno o reduce su tamaño.')
+
+    # 5. Guardar en la base de datos y en disco
     conn = None
     cursor = None
-    ruta_guardada = None
+    escritos = []          # archivos que ya están en disco
+    confirmado = False
+    id_proyecto = None
 
     try:
-        # 1. Recibir los datos del formulario
-        titulo = request.form.get('titulo', '').strip()
-        categoria = request.form.get('categoria', '').strip()
-        descripcion = request.form.get('descripcion', '').strip()
-        recursos = request.form.get('recursos', '').strip()
-        integrantes = request.form.get('integrantes', '').strip()
-        fecha = request.form.get('fecha', '').strip()
-        etiquetas = request.form.get('etiquetas', '').strip()
-        estado_formulario = request.form.get('estado', '').strip()
-
-        imagen = request.files.get('imagen_principal')
-
-        # 2. Validar los campos obligatorios
-        if not all([
-            titulo,
-            categoria,
-            descripcion,
-            recursos,
-            integrantes,
-            fecha,
-            etiquetas,
-            estado_formulario
-        ]):
-            flash('Completa todos los campos obligatorios.', 'warning')
-            return redirect(url_for('subir'))
-
-        if estado_formulario not in ('publicado', 'borrador'):
-            flash('Selecciona un estado válido.', 'warning')
-            return redirect(url_for('subir'))
-
-        # 3. Validar la fecha
-        from datetime import datetime
-
-        try:
-            datetime.strptime(fecha, '%Y-%m-%d')
-        except ValueError:
-            flash('La fecha de realización no es válida.', 'warning')
-            return redirect(url_for('subir'))
-
-        # 4. Validar la imagen
-        if not imagen or not imagen.filename:
-            flash('Selecciona una imagen de portada.', 'warning')
-            return redirect(url_for('subir'))
-
-        from werkzeug.utils import secure_filename
-        import uuid
-
-        nombre_seguro = secure_filename(imagen.filename)
-
-        if '.' not in nombre_seguro:
-            flash('El archivo no tiene una extensión válida.', 'warning')
-            return redirect(url_for('subir'))
-
-        extension = nombre_seguro.rsplit('.', 1)[1].lower()
-        extensiones_permitidas = {'jpg', 'jpeg', 'png', 'webp'}
-
-        if extension not in extensiones_permitidas:
-            flash('Usa una imagen JPG, JPEG, PNG o WEBP.', 'warning')
-            return redirect(url_for('subir'))
-
-        # 5. Preparar la carpeta y el nombre de la imagen
-        carpeta = os.path.join(
-            app.root_path,
-            'static',
-            'uploads',
-            'proyectos'
-        )
-
-        os.makedirs(carpeta, exist_ok=True)
-
-        nombre_archivo = f'{uuid.uuid4().hex}.{extension}'
-        ruta_guardada = os.path.join(carpeta, nombre_archivo)
-        ruta_relativa = f'uploads/proyectos/{nombre_archivo}'
-
-        # 6. Conectar con PostgreSQL
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
 
-        # 7. Buscar la categoría seleccionada
-        cursor.execute("""
-            SELECT id_categoria
-            FROM categorias
-            WHERE LOWER(nombre_categoria) = LOWER(%s)
-            LIMIT 1;
-        """, (categoria,))
+        cursor.execute("SELECT 1 FROM categorias WHERE id_categoria = %s;", (id_categoria,))
+        if not cursor.fetchone():
+            return volver('La categoría seleccionada no es válida.')
 
-        fila_categoria = cursor.fetchone()
+        # Solo integrantes que existan de verdad
+        ids_ok = []
+        if ids_integrantes:
+            cursor.execute("SELECT id_usuario FROM usuarios WHERE id_usuario = ANY(%s);", (list(ids_integrantes),))
+            ids_ok = [f['id_usuario'] for f in cursor.fetchall()]
 
-        if not fila_categoria:
-            flash(
-                'La categoría seleccionada no existe en la base de datos.',
-                'warning'
-            )
-            return redirect(url_for('subir'))
+        # Portada
+        nombre_img = f'{uuid.uuid4().hex}.{ext_img}'
+        ruta_img = os.path.join(app.config['UPLOAD_FOLDER'], nombre_img)
+        imagen.save(ruta_img)
+        escritos.append(ruta_img)
 
-        id_categoria = fila_categoria['id_categoria']
-
-        # 8. Obtener el usuario que publica el proyecto
-        cursor.execute("""
-            SELECT nombre_completo
-            FROM usuarios
-            WHERE id_usuario = %s;
-        """, (session['user_id'],))
-
-        usuario = cursor.fetchone()
-
-        if not usuario:
-            raise Exception('No se encontró el usuario de la sesión.')
-
-        profesor_a_cargo = usuario['nombre_completo']
-
-        # 9. Guardar la imagen
-        imagen.save(ruta_guardada)
-
-        # 10. Insertar el proyecto
         cursor.execute("""
             INSERT INTO proyectos (
-                titulo,
-                descripcion,
-                imagen_portada,
-                profesor_a_cargo,
-                grado,
-                estado,
-                es_destacado,
-                vistas_count,
-                likes_count,
-                calificacion,
-                id_usuario,
-                id_categoria,
-                fecha_creacion
+                titulo, descripcion, imagen_portada, profesor_a_cargo, grado, estado,
+                es_destacado, vistas_count, likes_count, calificacion, id_usuario, id_categoria
             )
-            VALUES (
-                %s, %s, %s, %s, %s, %s,
-                FALSE, 0, 0, 5.0, %s, %s,
-                CURRENT_TIMESTAMP
-            )
+            VALUES (%s, %s, %s, %s, %s, %s, FALSE, 0, 0, NULL, %s, %s)
             RETURNING id_proyecto;
         """, (
-            titulo,
-            descripcion,
-            ruta_relativa,
-            profesor_a_cargo,
-            'No especificado',
-            'Publicado' if estado_formulario == 'publicado' else 'Borrador',
-            session['user_id'],
-            id_categoria
+            titulo, descripcion, f'uploads/proyectos/{nombre_img}', profesor, grado,
+            'Publicado' if estado_form == 'publicado' else 'Borrador',
+            uid, id_categoria
         ))
+        id_proyecto = cursor.fetchone()['id_proyecto']
 
-        resultado = cursor.fetchone()
-        id_proyecto = resultado['id_proyecto']
+        # Autor e integrantes
+        cursor.execute(
+            "INSERT INTO proyecto_colaboradores (id_proyecto, id_usuario, rol_en_equipo) VALUES (%s, %s, 'Autor');",
+            (id_proyecto, uid)
+        )
+        for id_integrante in ids_ok:
+            cursor.execute(
+                "INSERT INTO proyecto_colaboradores (id_proyecto, id_usuario, rol_en_equipo) VALUES (%s, %s, 'Integrante');",
+                (id_proyecto, id_integrante)
+            )
 
-        # 11. Guardar las etiquetas y relacionarlas con el proyecto
+        # Documentos
+        for archivo, ext_doc, tam_doc in docs_validos:
+            nombre_doc = f'{uuid.uuid4().hex}.{ext_doc}'
+            ruta_doc = os.path.join(UPLOAD_DOCUMENTOS, nombre_doc)
+            archivo.save(ruta_doc)
+            escritos.append(ruta_doc)
+            nombre_original = os.path.basename(archivo.filename.replace('\\', '/'))[:255]
+            cursor.execute("""
+                INSERT INTO documentos_proyecto (id_proyecto, nombre_archivo, url_archivo, tipo_documento, tamano_bytes)
+                VALUES (%s, %s, %s, %s, %s);
+            """, (id_proyecto, nombre_original, f'uploads/documentos/{nombre_doc}', ext_doc, tam_doc))
+
+        # Enlace (se guarda como un documento de tipo 'enlace')
+        if enlace:
+            cursor.execute("""
+                INSERT INTO documentos_proyecto (id_proyecto, nombre_archivo, url_archivo, tipo_documento, tamano_bytes)
+                VALUES (%s, 'Enlace del proyecto', %s, 'enlace', NULL);
+            """, (id_proyecto, enlace))
+
         guardar_etiquetas(cursor, id_proyecto, etiquetas)
 
-        # 12. Confirmar todos los cambios
         conn.commit()
-
-        flash('¡Proyecto guardado correctamente!', 'success')
-
-        return redirect(url_for('ver_proyecto', id=id_proyecto))
+        confirmado = True
 
     except Exception:
         if conn:
             conn.rollback()
-
-        if ruta_guardada and os.path.exists(ruta_guardada):
-            os.remove(ruta_guardada)
-
+        # Solo se borran los archivos si NO se alcanzó a guardar el proyecto
+        if not confirmado:
+            for ruta in escritos:
+                if os.path.exists(ruta):
+                    os.remove(ruta)
         app.logger.exception('Error al guardar el proyecto')
-
-        flash(
-            'No se pudo guardar el proyecto. Revisa la terminal de Flask.',
-            'error'
-        )
-
-        return redirect(url_for('subir'))
+        return volver('No se pudo guardar el proyecto. Revisa la terminal de Flask.')
 
     finally:
         if cursor:
             cursor.close()
-
         if conn:
             conn.close()
 
+    flash('¡Proyecto guardado correctamente!', 'success')
+    return redirect(url_for('ver_proyecto', id=id_proyecto))
 
 # Ruta del perfil
 @app.route('/perfil')
@@ -588,6 +903,11 @@ def recursos():
 # =====================================================================
 # MANEJO DE ERRORES 
 # =====================================================================
+@app.errorhandler(413)
+def archivo_muy_grande(e):
+    flash('El envío es demasiado grande. La portada puede pesar máximo 5 MB y los documentos, 10 MB en total.', 'danger')
+    return redirect(url_for('subir'))
+
 # Captura el error 404 (Página no encontrada)
 @app.errorhandler(404)
 def page_not_found(e):

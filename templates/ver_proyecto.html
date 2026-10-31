@@ -1,0 +1,335 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ proyecto.titulo }} - ARION{% endblock %}
+
+{% macro tam(b) -%}
+    {%- if b -%}{%- if b < 1048576 -%}{{ (b / 1024)|round(0)|int }} KB{%- else -%}{{ (b / 1048576)|round(1) }} MB{%- endif -%}{%- endif -%}
+{%- endmacro %}
+
+{% block content %}
+{% set meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'] %}
+
+<div class="font-inter pb-5">
+
+    <!-- Migas de pan -->
+    <nav class="d-flex align-items-center gap-2 small mb-4" aria-label="breadcrumb">
+        <a href="{{ url_for('explorar') }}" class="text-muted text-decoration-none d-inline-flex align-items-center gap-1 hover-underline">
+            <i class="bi bi-arrow-left"></i> Explorar proyectos
+        </a>
+        <i class="bi bi-chevron-right text-muted" style="font-size: .7rem;"></i>
+        <span class="fw-medium text-dark text-truncate">{{ proyecto.titulo }}</span>
+    </nav>
+
+    {% if proyecto.estado|lower != 'publicado' %}
+    <div class="alert alert-warning border-0 rounded-4 small d-flex align-items-center gap-2 mb-4" role="alert">
+        <i class="bi bi-lock-fill"></i> Este proyecto es un borrador. Solo tú puedes verlo.
+    </div>
+    {% endif %}
+
+    <div class="row g-4">
+
+        <!-- ================= COLUMNA PRINCIPAL ================= -->
+        <div class="col-12 col-lg-8">
+
+            <div class="position-relative rounded-5 overflow-hidden shadow portada">
+                {% if proyecto.imagen %}
+                    <img src="{{ url_for('static', filename=proyecto.imagen) }}" alt="Portada de {{ proyecto.titulo }}" class="w-100 h-100 object-cover">
+                {% else %}
+                    <div class="w-100 h-100 d-flex align-items-center justify-content-center bg-light text-muted"><i class="bi bi-image fs-1"></i></div>
+                {% endif %}
+                {% if proyecto.destacado %}
+                <span class="position-absolute top-0 start-0 m-3 badge bg-warning text-dark rounded-pill fw-bold px-3 py-2">
+                    <i class="bi bi-star-fill me-1"></i> Proyecto destacado
+                </span>
+                {% endif %}
+            </div>
+
+            <div class="d-flex flex-wrap gap-2 mt-4 mb-3">
+                <span class="badge bg-primary-subtle text-primary rounded-pill px-3 py-2 fw-semibold">{{ proyecto.categoria }}</span>
+                {% if proyecto.destacado %}
+                <span class="badge rounded-pill px-3 py-2 fw-semibold badge-gold"><i class="bi bi-trophy me-1"></i>Destacado</span>
+                {% endif %}
+            </div>
+
+            <h1 class="fw-black text-dark display-5 mb-3">{{ proyecto.titulo }}</h1>
+
+            <div class="d-flex flex-wrap align-items-center gap-3 gap-sm-4 small text-muted mb-3">
+                <span class="d-inline-flex align-items-center gap-1">
+                    <i class="bi bi-star-fill text-warning"></i>
+                    <span id="meta-rating">{% if proyecto.rating is not none %}<strong class="text-dark">{{ '%.1f'|format(proyecto.rating) }}</strong> valoración{% else %}Sin valoraciones{% endif %}</span>
+                </span>
+                <span class="d-inline-flex align-items-center gap-1"><i class="bi bi-eye"></i> {{ proyecto.vistas }} vistas</span>
+                <span class="d-inline-flex align-items-center gap-1"><i class="bi bi-heart"></i> <span class="like-total">{{ proyecto.likes }}</span> me gusta</span>
+                {% if proyecto.fecha %}
+                <span class="d-inline-flex align-items-center gap-1">
+                    <i class="bi bi-calendar3"></i> {{ proyecto.fecha.day }} de {{ meses[proyecto.fecha.month - 1] }} de {{ proyecto.fecha.year }}
+                </span>
+                {% endif %}
+            </div>
+
+            {% if proyecto.etiquetas %}
+            <div class="d-flex flex-wrap gap-2 mb-4">
+                {% for t in proyecto.etiquetas %}
+                <span class="badge rounded-pill border bg-light text-secondary fw-medium px-3 py-2"><i class="bi bi-tag me-1"></i>{{ t }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Ficha del proyecto -->
+            <div class="row row-cols-2 row-cols-md-4 g-3 mb-4">
+                <div class="col">
+                    <div class="ficha-card rounded-4 p-3 text-center h-100">
+                        <i class="bi bi-grid text-primary fs-4"></i>
+                        <div class="fw-bold text-primary mt-1 text-truncate" title="{{ proyecto.categoria }}">{{ proyecto.categoria }}</div>
+                        <div class="text-muted small">Categoría</div>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="ficha-card rounded-4 p-3 text-center h-100">
+                        <i class="bi bi-mortarboard text-primary fs-4"></i>
+                        <div class="fw-bold text-primary mt-1 text-truncate" title="{{ proyecto.grado }}">{{ proyecto.grado }}</div>
+                        <div class="text-muted small">Grado</div>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="ficha-card rounded-4 p-3 text-center h-100">
+                        <i class="bi bi-person-workspace text-primary fs-4"></i>
+                        <div class="fw-bold text-primary mt-1 text-truncate" title="{{ proyecto.profesor }}">{{ proyecto.profesor }}</div>
+                        <div class="text-muted small">Profesor a cargo</div>
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="ficha-card rounded-4 p-3 text-center h-100">
+                        <i class="bi bi-people text-primary fs-4"></i>
+                        <div class="fw-bold text-primary mt-1">{{ integrantes|length }}</div>
+                        <div class="text-muted small">{{ 'Integrante' if integrantes|length == 1 else 'Integrantes' }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sobre el proyecto -->
+            <section class="bg-white border rounded-5 p-4 p-md-5 mb-4">
+                <h2 class="h4 fw-bold text-dark mb-3">Sobre el proyecto</h2>
+                <p class="text-muted lh-lg m-0 descripcion">{{ proyecto.descripcion }}</p>
+            </section>
+
+            <!-- Documentos -->
+            {% if documentos %}
+            <section class="bg-white border rounded-5 p-4 p-md-5 mb-4">
+                <h2 class="h4 fw-bold text-dark mb-3">Documentos</h2>
+                <div class="d-flex flex-column gap-2">
+                    {% for d in documentos %}
+                    {% set ext = (d.tipo or d.nombre.rsplit('.', 1)[-1])|lower %}
+                    <a href="{{ d.url }}" download target="_blank" rel="noopener" class="doc-row d-flex align-items-center gap-3 border rounded-4 p-3 text-decoration-none">
+                        <i class="bi {{ 'bi-file-earmark-pdf text-danger' if ext == 'pdf' else ('bi-file-earmark-word text-primary' if ext in ['doc', 'docx'] else 'bi-file-earmark text-secondary') }} fs-2"></i>
+                        <div class="flex-grow-1 min-w-0">
+                            <div class="fw-medium text-dark text-truncate">{{ d.nombre }}</div>
+                            <div class="text-muted small">{{ ext|upper }}{% if d.tamano %} · {{ tam(d.tamano) }}{% endif %}</div>
+                        </div>
+                        <i class="bi bi-download text-primary"></i>
+                    </a>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endif %}
+
+            <!-- Integrantes -->
+            <section class="bg-white border rounded-5 p-4 p-md-5 mb-4">
+                <h2 class="h4 fw-bold text-dark mb-3">Integrantes del equipo</h2>
+                <div class="d-flex flex-wrap gap-3">
+                    {% for i in integrantes %}
+                    <div class="d-flex align-items-center gap-2 bg-light rounded-pill py-2 pe-4 ps-2">
+                        {% if i.foto %}
+                            <img src="{{ i.foto }}" alt="" referrerpolicy="no-referrer" class="avatar-sm rounded-circle object-cover">
+                        {% else %}
+                            <div class="avatar-sm rounded-circle text-white fw-bold d-flex align-items-center justify-content-center">{{ i.nombre|iniciales }}</div>
+                        {% endif %}
+                        <div class="lh-sm">
+                            <div class="small fw-medium text-dark">{{ i.nombre }}</div>
+                            {% if i.rol %}<div class="text-muted" style="font-size: .7rem;">{{ i.rol }}</div>{% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+
+            <!-- Valorar este proyecto -->
+            <section class="bg-white border rounded-5 p-4 p-md-5">
+                <h2 class="h4 fw-bold text-dark mb-4">Valorar este proyecto</h2>
+                <div class="d-flex flex-wrap align-items-center gap-4">
+                    <div class="text-center">
+                        <div id="rating-big" class="fw-black text-primary lh-1" style="font-size: 3.5rem;">{% if proyecto.rating is not none %}{{ '%.1f'|format(proyecto.rating) }}{% else %}—{% endif %}</div>
+                        <div id="avg-stars" class="text-warning small mt-1"></div>
+                        <div class="text-muted small"><span id="rating-total">{{ total_valoraciones }}</span> {{ 'valoración' if total_valoraciones == 1 else 'valoraciones' }}</div>
+                    </div>
+                    <div>
+                        {% if es_autor %}
+                            <p class="text-muted small m-0">No puedes valorar tu propio proyecto.</p>
+                        {% else %}
+                            <div class="small fw-medium text-dark mb-1">Tu valoración: <span id="mi-valoracion" class="text-muted">{{ (mi_valoracion ~ ' de 5') if mi_valoracion else 'sin valorar' }}</span></div>
+                            <div id="stars" class="d-flex gap-1" role="radiogroup" aria-label="Tu valoración">
+                                {% for n in range(1, 6) %}
+                                <button type="button" class="star-btn" data-value="{{ n }}" aria-label="{{ n }} de 5 estrellas"><i class="bi bi-star"></i></button>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <div id="rate-msg" class="small text-danger mt-1 d-none"></div>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+
+        <!-- ================= COLUMNA LATERAL ================= -->
+        <div class="col-12 col-lg-4">
+            <div class="sticky-lg-top" style="top: 88px;">
+
+                <div class="bg-white border rounded-5 p-3 mb-4">
+                    <button type="button" id="btn-like" class="btn {{ 'btn-danger' if ya_like else 'btn-primary' }} w-100 rounded-4 fw-semibold d-flex align-items-center justify-content-center gap-2 mb-2" style="height: 48px;">
+                        <i class="bi {{ 'bi-heart-fill' if ya_like else 'bi-heart' }}"></i> <span>Me gusta · <span class="like-total">{{ proyecto.likes }}</span></span>
+                    </button>
+                    <div id="like-msg" class="small text-danger text-center mb-2 d-none"></div>
+                    <button type="button" id="btn-share" class="btn btn-outline-secondary w-100 rounded-4 d-flex align-items-center justify-content-center gap-2 text-dark mb-2" style="height: 42px;">
+                        <i class="bi bi-share"></i> <span>Compartir</span>
+                    </button>
+                    {% if enlace %}
+                    <a href="{{ enlace }}" target="_blank" rel="noopener noreferrer"
+                       class="btn btn-outline-primary w-100 rounded-4 fw-medium d-flex align-items-center justify-content-center gap-2" style="height: 42px;">
+                        <i class="bi bi-box-arrow-up-right"></i> Ver proyecto
+                    </a>
+                    {% endif %}
+                </div>
+
+                <div class="bg-white border rounded-5 p-4">
+                    <div class="small fw-semibold text-muted mb-3">Autor</div>
+                    <div class="d-flex align-items-center gap-3">
+                        {% if autor.foto %}
+                            <img src="{{ autor.foto }}" alt="" referrerpolicy="no-referrer" class="avatar-lg rounded-4 object-cover flex-shrink-0">
+                        {% else %}
+                            <div class="avatar-lg rounded-4 text-white fw-bold fs-5 d-flex align-items-center justify-content-center flex-shrink-0">{{ autor.nombre|iniciales }}</div>
+                        {% endif %}
+                        <div class="min-w-0">
+                            <div class="fw-bold text-dark text-truncate">{{ autor.nombre }}</div>
+                            <div class="text-muted small">Institución Educativa Sagrada Familia</div>
+                        </div>
+                    </div>
+                    <div class="bg-light rounded-3 p-2 text-center mt-3">
+                        <span class="fw-bold text-primary">{{ autor.proyectos }}</span>
+                        <span class="text-muted small">{{ 'proyecto publicado' if autor.proyectos == 1 else 'proyectos publicados' }}</span>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const URL_LIKE = "{{ url_for('toggle_like', id=proyecto.id) }}";
+    const URL_VALORAR = "{{ url_for('valorar_proyecto', id=proyecto.id) }}";
+    let ratingActual = {{ proyecto.rating if proyecto.rating is not none else 'null' }};
+    let miRating = {{ mi_valoracion or 0 }};
+
+    async function post(url, body) {
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body || {})
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'No se pudo completar la acción.');
+        return data;
+    }
+
+    function showMsg(id, text) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = text;
+        el.classList.toggle('d-none', !text);
+        if (text) setTimeout(() => el.classList.add('d-none'), 3500);
+    }
+
+    /* ----- Me gusta ----- */
+    const likeBtn = document.getElementById('btn-like');
+    likeBtn.addEventListener('click', async () => {
+        likeBtn.disabled = true;
+        try {
+            const data = await post(URL_LIKE);
+            document.querySelectorAll('.like-total').forEach(el => el.textContent = data.likes);
+            likeBtn.classList.toggle('btn-danger', data.liked);
+            likeBtn.classList.toggle('btn-primary', !data.liked);
+            likeBtn.querySelector('i').className = data.liked ? 'bi bi-heart-fill' : 'bi bi-heart';
+        } catch (e) { showMsg('like-msg', e.message); }
+        likeBtn.disabled = false;
+    });
+
+    /* ----- Compartir ----- */
+    document.getElementById('btn-share').addEventListener('click', async function () {
+        const label = this.querySelector('span');
+        const data = { title: document.title, url: window.location.href };
+        try {
+            if (navigator.share) { await navigator.share(data); return; }
+            await navigator.clipboard.writeText(data.url);
+            label.textContent = '¡Enlace copiado!';
+            setTimeout(() => label.textContent = 'Compartir', 2000);
+        } catch (e) { /* el usuario canceló */ }
+    });
+
+    /* ----- Valoración ----- */
+    function renderAvgStars() {
+        const full = ratingActual === null ? 0 : Math.floor(ratingActual);
+        document.getElementById('avg-stars').innerHTML = [1, 2, 3, 4, 5]
+            .map(n => `<i class="bi ${n <= full ? 'bi-star-fill' : 'bi-star'}"></i>`).join('');
+    }
+    renderAvgStars();
+
+    const stars = document.querySelectorAll('.star-btn');
+    function paintStars(n) {
+        stars.forEach(s => {
+            s.querySelector('i').className = Number(s.dataset.value) <= n ? 'bi bi-star-fill text-warning' : 'bi bi-star';
+        });
+    }
+    if (stars.length) {
+        paintStars(miRating);
+        stars.forEach(s => {
+            s.addEventListener('mouseenter', () => paintStars(Number(s.dataset.value)));
+            s.addEventListener('click', async () => {
+                const valor = Number(s.dataset.value);
+                try {
+                    const data = await post(URL_VALORAR, { puntuacion: valor });
+                    miRating = valor;
+                    ratingActual = data.promedio;
+                    document.getElementById('mi-valoracion').textContent = valor + ' de 5';
+                    document.getElementById('rating-big').textContent = data.promedio.toFixed(1);
+                    document.getElementById('rating-total').textContent = data.total;
+                    document.getElementById('meta-rating').innerHTML = `<strong class="text-dark">${data.promedio.toFixed(1)}</strong> valoración`;
+                    renderAvgStars();
+                } catch (e) { showMsg('rate-msg', e.message); }
+                paintStars(miRating);
+            });
+        });
+        document.getElementById('stars').addEventListener('mouseleave', () => paintStars(miRating));
+    }
+</script>
+
+<style>
+    .min-w-0 { min-width: 0; }
+    .portada { aspect-ratio: 16 / 9; }
+    .badge-gold { background: #fff8e1; color: #92400e; border: 1px solid #fde68a; }
+    .descripcion { white-space: pre-line; }
+
+    .ficha-card { background: linear-gradient(180deg, #f5f8ff, #eef3ff); border: 1px solid #dbe6ff; }
+
+    .avatar-sm { width: 32px; height: 32px; font-size: .72rem; background: linear-gradient(135deg, #60a5fa, #2563eb); }
+    .avatar-lg { width: 56px; height: 56px; background: linear-gradient(135deg, #60a5fa, #2563eb); }
+
+    .doc-row { transition: all .2s; }
+    .doc-row:hover { border-color: #0d6efd !important; background: #f8fbff; }
+
+    .star-btn { background: none; border: 0; padding: 2px; font-size: 1.8rem; line-height: 1; color: #ced4da; cursor: pointer; transition: transform .15s; }
+    .star-btn:hover { transform: scale(1.12); }
+    .star-btn:focus-visible { outline: 2px solid #0d6efd; border-radius: 6px; }
+</style>
+{% endblock %}
