@@ -46,9 +46,11 @@
             <div class="col-12 col-sm-8 col-lg-4">
                 <select id="sort-select" class="form-select rounded-4 shadow-sm border-light" style="height: 46px;" aria-label="Ordenar proyectos">
                     <option value="recientes">Más recientes</option>
+                    {% if session.get('user_id') %}
                     <option value="vistas">Más vistos</option>
                     <option value="valorados">Mejor valorados</option>
                     <option value="gustados">Más gustados</option>
+                    {% endif %}
                 </select>
             </div>
 
@@ -83,8 +85,8 @@
             </div>
             <h2 class="h5 fw-bold text-dark" id="empty-title"></h2>
             <p class="text-muted small mb-4" id="empty-text"></p>
-            <a href="{{ url_for('subir') }}" id="empty-cta" class="btn btn-primary rounded-pill px-4 fw-medium d-none">
-                <i class="bi bi-upload me-2"></i>Subir un proyecto
+            <a href="{{ url_for('subir') if session.get('user_id') else url_for('register') }}" id="empty-cta" class="btn btn-primary rounded-pill px-4 fw-medium d-none">
+                <i class="bi bi-upload me-2"></i>{{ 'Subir un proyecto' if session.get('user_id') else 'Accede para publicar' }}
             </a>
         </div>
 
@@ -97,6 +99,7 @@
 <script>
     // Proyectos publicados, leídos de la base de datos
     const projects = {{ proyectos|tojson }};
+    const authenticated = {{ 'true' if session.get('user_id') else 'false' }};
 
     const PAGE_SIZE = 9;
     let activeCategory = "Todos";
@@ -137,6 +140,7 @@
     }
 
     function metaHtml(p) {
+        if (!authenticated) return '';
         const rating = p.rating === null
             ? `<span class="badge bg-primary-subtle text-primary rounded-pill">Nuevo</span>`
             : `<span><i class="bi bi-star-fill text-warning me-1"></i>${p.rating.toFixed(1)}</span>`;
@@ -160,6 +164,12 @@
         return `<a href="/proyecto/${p.id}" class="stretched-link text-decoration-none text-reset">${esc(p.title)}</a>`;
     }
 
+    function descriptionHtml(p) {
+        const description = p.description || 'Sin descripción disponible.';
+        return `<p class="project-description text-muted small mt-3 mb-0">${esc(description)}</p>
+            ${authenticated ? '' : '<p class="small text-primary mt-2 mb-0">Inicia sesión para ver más información.</p>'}`;
+    }
+
     function cardGrid(p) {
         return `
             <div class="col">
@@ -172,6 +182,7 @@
                         <div>
                             <h5 class="card-title fw-bold text-dark mb-1 card-title-hover">${titleHtml(p)}</h5>
                             <span class="badge bg-secondary-subtle text-secondary rounded-2 px-2 py-1 text-xs">${esc(p.category)}</span>
+                            ${descriptionHtml(p)}
                         </div>
                         <div class="d-flex align-items-center justify-content-between gap-2 mt-4 pt-3 border-t">
                             ${authorHtml(p, 26)}
@@ -194,6 +205,7 @@
                         <div>
                             <h5 class="card-title fw-bold text-dark mb-1 card-title-hover">${titleHtml(p)}</h5>
                             <span class="badge bg-secondary-subtle text-secondary rounded-2 px-2 py-1 text-xs">${esc(p.category)}</span>
+                            ${descriptionHtml(p)}
                         </div>
                         <div class="d-flex align-items-center justify-content-between gap-2 mt-3 pt-2 border-t">
                             ${authorHtml(p, 24)}
@@ -275,6 +287,7 @@
 <style>
     .min-w-0 { min-width: 0; }
     .list-thumb { width: 200px; height: 140px; }
+    .project-description { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
     @media (max-width: 575.98px) { .list-thumb { width: 100%; } }
 </style>
 {% endblock %}

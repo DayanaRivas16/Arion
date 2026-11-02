@@ -332,11 +332,13 @@ def tarjetas_proyectos(cursor, solo_destacados, limite):
     filas = cursor.fetchall()
     for f in filas:
         f['imagen'] = url_for('static', filename=f['imagen_portada']) if f['imagen_portada'] else ''
+        if 'user_id' not in session:
+            f['rating'] = None
+            f['vistas'] = None
     return filas
 
 
 @app.route('/')
-@login_required
 def home():
     stats = {'proyectos': 0, 'usuarios': 0, 'destacados': 0}
     proyectos = []
@@ -367,7 +369,6 @@ def home():
     return render_template('home.html', stats=stats, proyectos=proyectos, solo_recientes=solo_recientes)
 
 @app.route('/explorar')
-@login_required
 def explorar():
     filas = []
     conn = None
@@ -378,6 +379,7 @@ def explorar():
         cursor.execute("""
             SELECT p.id_proyecto AS id,
                    p.titulo,
+                   p.descripcion,
                    COALESCE(c.nombre_categoria, 'Sin categoría') AS categoria,
                    COALESCE(u.nombre_completo, 'Autor desconocido') AS autor,
                    p.calificacion::float AS rating,
@@ -401,17 +403,20 @@ def explorar():
         if conn: conn.close()
 
     proyectos = []
+    autenticado = 'user_id' in session
     for f in filas:
         iniciales = ''.join(p[0] for p in f['autor'].split()[:2]).upper() or '?'
+        descripcion = (f['descripcion'] or '').strip()
         proyectos.append({
             'id': f['id'],
             'title': f['titulo'],
+            'description': descripcion[:180] + ('...' if len(descripcion) > 180 else ''),
             'category': f['categoria'],
             'author': f['autor'],
             'avatar': iniciales,
-            'rating': f['rating'],
-            'views': f['vistas'] or 0,
-            'likes': f['likes'] or 0,
+            'rating': f['rating'] if autenticado else None,
+            'views': (f['vistas'] or 0) if autenticado else None,
+            'likes': (f['likes'] or 0) if autenticado else None,
             'image': url_for('static', filename=f['imagen_portada']) if f['imagen_portada'] else '',
             'featured': bool(f['destacado']),
             'date': f['fecha_creacion'].timestamp() if f['fecha_creacion'] else 0,
@@ -420,7 +425,6 @@ def explorar():
     return render_template('explorar_proyectos.html', proyectos=proyectos)
 
 @app.route('/acerca')
-@login_required
 def acerca():
     return render_template('acerca.html')
 

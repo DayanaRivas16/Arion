@@ -36,6 +36,7 @@
                         <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'explorar' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
                         href="{{ url_for('explorar') }}">Explorar proyectos</a>
                     </li>
+                    {% if session.get('user_id') %}
                     <li class="nav-item">
                         <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'subir' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
                         href="{{ url_for('subir') }}">Subir proyecto</a>
@@ -48,6 +49,7 @@
                         <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'recursos' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
                         href="{{ url_for('recursos') }}">Recursos</a>
                     </li>
+                    {% endif %}
                     <li class="nav-item">
                         <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'acerca' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
                         href="{{ url_for('acerca') }}">Acerca de</a>
@@ -111,8 +113,10 @@
                     <ul class="nav flex-column gap-2">
                         <li class="nav-item"><a href="{{ url_for('home') }}" class="nav-link p-0 text-muted small text-hover-dark">Inicio</a></li>
                         <li class="nav-item"><a href="{{ url_for('explorar') }}" class="nav-link p-0 text-muted small text-hover-dark">Explorar proyectos</a></li>
+                        {% if session.get('user_id') %}
                         <li class="nav-item"><a href="{{ url_for('subir') }}" class="nav-link p-0 text-muted small text-hover-dark">Subir proyecto</a></li>
                         <li class="nav-item"><a href="{{ url_for('recursos') }}" class="nav-link p-0 text-muted small text-hover-dark">Recursos</a></li>
+                        {% endif %}
                     </ul>
                 </div>
 

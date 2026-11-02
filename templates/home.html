@@ -17,6 +17,7 @@
             </h4>
             <p class="text-muted small mb-3 text-truncate">Por {{ p.autor }}</p>
             <div class="d-flex align-items-center justify-content-between pt-2 border-top">
+                {% if session.get('user_id') %}
                 {% if p.rating is not none %}
                 <span class="text-warning small fw-bold d-flex align-items-center gap-1">
                     <i class="bi bi-star-fill"></i> {{ '%.1f'|format(p.rating) }}
@@ -27,6 +28,10 @@
                 <span class="text-muted small d-flex align-items-center gap-1">
                     <i class="bi bi-eye"></i> {{ p.vistas }}
                 </span>
+                {% else %}
+                <span class="badge bg-primary-subtle text-primary rounded-pill">Vista previa</span>
+                <span class="small text-primary">Inicia sesión para ver más</span>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -57,8 +62,8 @@
                     </p>
 
                     <div class="d-flex flex-wrap gap-3 pt-2">
-                        <a href="{{ url_for('subir') }}" class="btn btn-primary rounded-pill px-4 py-2 fw-semibold d-inline-flex align-items-center gap-2 shadow-sm">
-                            <i class="bi bi-upload"></i> Subir mi proyecto
+                        <a href="{{ url_for('subir') if session.get('user_id') else url_for('register') }}" class="btn btn-primary rounded-pill px-4 py-2 fw-semibold d-inline-flex align-items-center gap-2 shadow-sm">
+                            <i class="bi bi-upload"></i> {{ 'Subir mi proyecto' if session.get('user_id') else 'Accede para publicar' }}
                         </a>
                         <a href="{{ url_for('explorar') }}" class="btn btn-outline-dark border-2 rounded-pill px-4 py-2 fw-semibold d-inline-flex align-items-center gap-2">
                             <i class="bi bi-search"></i> Explorar proyectos
@@ -200,8 +205,8 @@
                 </div>
                 <h3 class="h5 fw-bold text-dark">Aún no hay proyectos publicados</h3>
                 <p class="text-muted small mb-4">Sé la primera persona en compartir uno.</p>
-                <a href="{{ url_for('subir') }}" class="btn btn-primary rounded-pill px-4 fw-medium">
-                    <i class="bi bi-upload me-2"></i>Subir un proyecto
+                <a href="{{ url_for('subir') if session.get('user_id') else url_for('register') }}" class="btn btn-primary rounded-pill px-4 fw-medium">
+                    <i class="bi bi-upload me-2"></i>{{ 'Subir un proyecto' if session.get('user_id') else 'Acccede para publicar' }}
                 </a>
             </div>
             {% endif %}
@@ -235,8 +240,8 @@
                     <p class="text-white-50 fs-5 mb-4 mx-auto" style="max-width: 550px;">
                         Comparte tu proyecto con toda la comunidad de la Institución Educativa Sagrada Familia.
                     </p>
-                    <a href="{{ url_for('subir') }}" class="btn btn-primary btn-lg rounded-pill px-5 fw-bold text-white shadow-sm">
-                        Subir mi proyecto
+                    <a href="{{ url_for('subir') if session.get('user_id') else url_for('register') }}" class="btn btn-primary btn-lg rounded-pill px-5 fw-bold text-white shadow-sm">
+                        {{ 'Subir mi proyecto' if session.get('user_id') else 'Accede para publicar' }}
                     </a>
                 </div>
             </div>

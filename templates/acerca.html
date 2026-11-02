@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+
+{% block title %}Acerca de - ARION{% endblock %}
+
+{% block content %}
+<section class="bg-white border rounded-5 p-4 p-md-5 mb-4">
+    <div class="row align-items-center g-4">
+        <div class="col-12 col-lg-8">
+            <span class="badge bg-primary-subtle text-primary rounded-pill px-3 py-2 mb-3">Acerca de ARION</span>
+            <h1 class="display-5 fw-black text-dark mb-3">Ideas que inspiran y conectan</h1>
+            <p class="lead text-muted mb-0">
+                ARION es un espacio para descubrir, compartir y dar visibilidad a los proyectos
+                de la comunidad de la Institución Educativa Sagrada Familia.
+            </p>
+        </div>
+        <div class="col-12 col-lg-4 text-center">
+            <i class="bi bi-lightbulb text-primary" aria-hidden="true" style="font-size: 7rem;"></i>
+        </div>
+    </div>
+</section>
+
+<section class="row g-4 mb-4">
+    <div class="col-12 col-md-4">
+        <article class="bg-white border rounded-4 p-4 h-100">
+            <i class="bi bi-search text-primary fs-3" aria-hidden="true"></i>
+            <h2 class="h5 fw-bold mt-3">Explora</h2>
+            <p class="text-muted mb-0">Conoce una vista previa de los proyectos publicados sin crear una cuenta.</p>
+        </article>
+    </div>
+    <div class="col-12 col-md-4">
+        <article class="bg-white border rounded-4 p-4 h-100">
+            <i class="bi bi-people text-primary fs-3" aria-hidden="true"></i>
+            <h2 class="h5 fw-bold mt-3">Conecta</h2>
+            <p class="text-muted mb-0">Inicia sesión para consultar la información completa e interactuar con los proyectos.</p>
+        </article>
+    </div>
+    <div class="col-12 col-md-4">
+        <article class="bg-white border rounded-4 p-4 h-100">
+            <i class="bi bi-upload text-primary fs-3" aria-hidden="true"></i>
+            <h2 class="h5 fw-bold mt-3">Comparte</h2>
+            <p class="text-muted mb-0">Regístrate para publicar tus ideas y compartirlas con la comunidad.</p>
+        </article>
+    </div>
+</section>
+
+{% if not session.get('user_id') %}
+<div class="text-center">
+    <a href="{{ url_for('register') }}" class="btn btn-primary rounded-pill px-4">Crear una cuenta</a>
+</div>
+{% endif %}
+{% endblock %}
