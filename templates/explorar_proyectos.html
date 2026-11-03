@@ -43,7 +43,7 @@
                 </div>
             </div>
 
-            <div class="col-12 col-sm-8 col-lg-4">
+            <div class="col-12 col-sm-8 col-lg-2">
                 <select id="sort-select" class="form-select rounded-4 shadow-sm border-light" style="height: 46px;" aria-label="Ordenar proyectos">
                     <option value="recientes">Más recientes</option>
                     {% if session.get('user_id') %}
@@ -51,6 +51,16 @@
                     <option value="valorados">Mejor valorados</option>
                     <option value="gustados">Más gustados</option>
                     {% endif %}
+                </select>
+            </div>
+
+            <!-- Nuevo Desplegable Horizontal de Autores -->
+            <div class="col-12 col-sm-8 col-lg-2">
+                <select id="author-select" class="form-select rounded-4 shadow-sm border-light" style="height: 46px;" aria-label="Filtrar por autor">
+                    <option value="">Todos los autores</option>
+                    {% for autor in autores %}
+                    <option value="{{ autor.nombre }}">{{ autor.nombre }}</option>
+                    {% endfor %}
                 </select>
             </div>
 
@@ -105,6 +115,7 @@
     let activeCategory = "Todos";
     let viewMode = "grid";
     let searchQuery = "";
+    let selectedAuthor = "";
     let sortBy = "recientes";
     let visibleCount = PAGE_SIZE;
 
@@ -126,12 +137,31 @@
     };
 
     function getFiltered() {
-        const q = searchQuery.trim().toLowerCase();
-        return projects
-            .filter(p => (activeCategory === "Todos" || p.category === activeCategory)
-                && (p.title.toLowerCase().includes(q) || p.author.toLowerCase().includes(q)))
-            .sort(sorters[sortBy]);
-    }
+    const q = searchQuery.trim().toLowerCase();
+    return projects
+        .filter(p => (activeCategory === "Todos" || p.category === activeCategory)
+            && (p.title.toLowerCase().includes(q) || p.author.toLowerCase().includes(q))
+            && (selectedAuthor === "" || p.author === selectedAuthor))
+        .sort(sorters[sortBy]);
+}
+
+    function resetAndRender() { visibleCount = PAGE_SIZE; renderProjects(); }
+
+    document.getElementById('search-input').addEventListener('input', e => {
+        searchQuery = e.target.value;
+        resetAndRender();
+    });
+
+    // <--- 3. Agregas este escuchador de eventos para el menú desplegable del autor
+    document.getElementById('author-select').addEventListener('change', e => {
+        selectedAuthor = e.target.value;
+        resetAndRender();
+    });
+
+    document.getElementById('sort-select').addEventListener('change', e => {
+        sortBy = e.target.value;
+        resetAndRender();
+    });
 
     function imageHtml(p) {
         return p.image
@@ -246,6 +276,11 @@
         resetAndRender();
     });
 
+    document.getElementById('author-select').addEventListener('change', e => {
+        selectedAuthor = e.target.value;
+        resetAndRender();
+    });
+
     document.getElementById('sort-select').addEventListener('change', e => {
         sortBy = e.target.value;
         resetAndRender();
@@ -290,4 +325,5 @@
     .project-description { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
     @media (max-width: 575.98px) { .list-thumb { width: 100%; } }
 </style>
+
 {% endblock %}

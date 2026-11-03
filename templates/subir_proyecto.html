@@ -98,7 +98,7 @@
                     <div id="cover-error" class="alert alert-danger border-0 rounded-3 small py-2 mt-3 d-none" role="alert"></div>
 
                     <!-- Documentos -->
-                    <label class="form-label small fw-medium text-dark mt-4">Documentos <span class="text-muted fw-normal">(opcional)</span></label>
+                    <label class="form-label small fw-medium text-dark mt-4">Documentos <span class="text-muted fw-normal">*</span></label>
                     <input type="file" id="documentos" name="documentos" accept=".pdf,.docx" multiple hidden>
 
                     <div id="dz-docs" class="dropzone rounded-4 p-4 text-center" role="button" tabindex="0">
@@ -298,6 +298,8 @@
         }
         if (n === 1) {
             if (!cover) return "Elige una imagen de portada.";
+            
+            if (!docs.length) return "Debes adjuntar al menos un documento obligatorio.";
         }
         if (n === 2) {
             if (!form.profesor.value.trim()) return "Escribe el nombre del profesor a cargo.";

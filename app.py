@@ -371,11 +371,14 @@ def home():
 @app.route('/explorar')
 def explorar():
     filas = []
+    autores = [] # <--- NUEVO: Lista para almacenar los autores registrados con proyectos
     conn = None
     cursor = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # (Tu consulta de proyectos existente se mantiene intacta)
         cursor.execute("""
             SELECT p.id_proyecto AS id,
                    p.titulo,
@@ -395,8 +398,20 @@ def explorar():
             ORDER BY p.fecha_creacion DESC;
         """)
         filas = cursor.fetchall()
+        
+        # <--- NUEVO: Consulta optimizada basada estrictamente en tu esquema para traer 
+        # únicamente usuarios que tengan proyectos publicados, ordenados alfabéticamente.
+        cursor.execute("""
+            SELECT DISTINCT u.id_usuario AS id, u.nombre_completo AS nombre
+            FROM usuarios u
+            JOIN proyectos p ON u.id_usuario = p.id_usuario
+            WHERE LOWER(p.estado) = 'publicado'
+            ORDER BY u.nombre_completo ASC;
+        """)
+        autores = cursor.fetchall()
+
     except Exception:
-        app.logger.exception('Error cargando proyectos')
+        app.logger.exception('Error cargando proyectos o autores')
         flash('No se pudieron cargar los proyectos.', 'danger')
     finally:
         if cursor: cursor.close()
@@ -422,7 +437,8 @@ def explorar():
             'date': f['fecha_creacion'].timestamp() if f['fecha_creacion'] else 0,
         })
 
-    return render_template('explorar_proyectos.html', proyectos=proyectos)
+    # <--- NUEVO: Se añade la variable autores al render_template
+    return render_template('explorar_proyectos.html', proyectos=proyectos, autores=autores)
 
 @app.route('/acerca')
 def acerca():
