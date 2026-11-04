@@ -75,18 +75,29 @@
         </div>
     </header>
 
-    <div class="container-xl mt-3">
+    <!-- Contenedor de alertas -->
+    <div class="position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 1080; width: 100%; max-width: 450px;" id="flash-container">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
-                    <div class="alert alert-{% if category == 'danger' or category == 'warning' %}danger{% else %}success{% endif %} alert-dismissible fade show" role="alert">
+                    <div class="alert alert-{% if category == 'danger' or category == 'warning' %}danger{% else %}success{% endif %} alert-dismissible fade show shadow-lg rounded-4 text-center" role="alert">
                         {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="box" data-bs-dismiss="alert" aria-label="Close"></button>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                     </div>
                 {% endfor %}
             {% endif %}
         {% endwith %}
     </div>
+
+    <script>
+        setTimeout(function() {
+            let alerts = document.querySelectorAll('#flash-container .alert');
+            alerts.forEach(function(alert) {
+                let bsAlert = bootstrap.Alert.getInstance(alert) || new bootstrap.Alert(alert);
+                bsAlert.close();
+            });
+        }, 3000);
+    </script>
 
     <main class="container-xl flex-grow-1 py-4">
         {% block content %}

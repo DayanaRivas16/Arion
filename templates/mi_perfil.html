@@ -1,0 +1,275 @@
+{% extends 'base.html' %}
+
+{% block title %}Mi Perfil - ARION{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/mi_perfil.css') }}">
+{% endblock %}
+
+{# Tarjeta de proyecto. Con propio=True muestra el estado y los botones Editar / Eliminar #}
+{% macro tarjeta(p, propio=False) %}
+<div class="col">
+    <div class="card h-100 border-0 rounded-4 shadow-sm overflow-hidden custom-profile-card">
+        <div class="position-relative overflow-hidden" style="height: 160px;">
+            {% if p.imagen %}
+                <img src="{{ p.imagen }}" class="w-100 h-100 object-cover card-img-anim" alt="Portada de {{ p.titulo }}">
+            {% else %}
+                <div class="w-100 h-100 bg-light d-flex align-items-center justify-content-center text-muted"><i class="bi bi-image fs-1"></i></div>
+            {% endif %}
+            {% if p.destacado %}
+            <span class="position-absolute top-0 start-0 m-2 badge bg-warning text-dark rounded-pill fw-bold" style="font-size: 10px;">⭐ Destacado</span>
+            {% endif %}
+            {% if propio %}
+            <span class="position-absolute top-0 end-0 m-2 badge rounded-pill {{ 'bg-success' if p.estado|lower == 'publicado' else 'bg-secondary' }}" style="font-size: 10px;">{{ p.estado }}</span>
+            {% endif %}
+        </div>
+        <div class="card-body p-4 d-flex flex-column">
+            <h5 class="card-title fw-bold text-dark mb-1 h6 card-title-hover text-truncate">
+                <a href="{{ url_for('ver_proyecto', id=p.id) }}" class="stretched-link text-decoration-none text-reset">{{ p.titulo }}</a>
+            </h5>
+            <div class="d-flex flex-wrap gap-1">
+                <span class="badge bg-secondary-subtle text-secondary rounded-2 px-2 py-1 text-xs">{{ p.categoria }}</span>
+                {% if propio and not p.es_autor %}
+                <span class="badge bg-primary-subtle text-primary rounded-2 px-2 py-1 text-xs">Integrante</span>
+                {% endif %}
+            </div>
+            <p class="text-muted small mt-2 mb-0 clamp-2">{{ p.descripcion }}</p>
+
+            <div class="d-flex align-items-center gap-3 mt-3 pt-3 border-t text-muted small" style="font-size: 11px;">
+                {% if p.rating is not none %}
+                <span><i class="bi bi-star-fill text-warning me-1"></i>{{ '%.1f'|format(p.rating) }}</span>
+                {% else %}
+                <span class="badge bg-primary-subtle text-primary rounded-pill">Nuevo</span>
+                {% endif %}
+                <span><i class="bi bi-eye me-1"></i>{{ p.vistas }}</span>
+                <span><i class="bi bi-heart me-1"></i>{{ p.likes }}</span>
+            </div>
+
+            {% if propio and p.es_autor %}
+            <div class="d-flex gap-2 mt-3 position-relative" style="z-index: 2;">
+                <button type="button" class="btn btn-outline-secondary btn-sm flex-fill rounded-3 d-flex align-items-center justify-content-center gap-1"
+                        style="height: 34px;" data-bs-toggle="modal" data-bs-target="#editModal"
+                        data-id="{{ p.id }}" data-titulo="{{ p.titulo }}" data-categoria="{{ p.id_categoria or '' }}" data-descripcion="{{ p.descripcion }}">
+                    <i class="bi bi-pencil"></i> Editar
+                </button>
+                <button type="button" class="btn btn-outline-danger btn-sm rounded-3 px-3" style="height: 34px;" aria-label="Eliminar {{ p.titulo }}"
+                        data-bs-toggle="modal" data-bs-target="#deleteModal" data-id="{{ p.id }}" data-titulo="{{ p.titulo }}">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+{% block content %}
+{% set meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'] %}
+
+<div class="font-inter mb-5">
+
+    <!-- Portada  -->
+    <div class="position-relative">
+        <div class="w-100 position-relative overflow-hidden rounded-4" style="height: 208px; background: linear-gradient(to right, #0d6efd, #2563eb, #1e40af);">
+            <div class="position-absolute top-0 start-0 w-100 h-100 opacity-20 profile-cover-pattern"></div>
+        </div>
+
+        <div class="container max-w-5xl">
+            <div class="position-relative d-flex flex-column flex-sm-row align-items-start align-items-sm-end gap-3 pb-4" style="margin-top: -64px; z-index: 10;">
+
+                <div class="rounded-4 border border-4 border-white shadow bg-white d-flex align-items-center justify-content-center overflow-hidden flex-shrink-0" style="width: 112px; height: 112px;">
+                    {% if usuario.foto %}
+                        <img src="{{ usuario.foto }}" alt="Tu foto de perfil" referrerpolicy="no-referrer" class="w-100 h-100 object-cover">
+                    {% else %}
+                        <span class="w-100 h-100 d-flex align-items-center justify-content-center text-white fw-black fs-1 avatar-bg">{{ usuario.nombre|iniciales }}</span>
+                    {% endif %}
+                </div>
+
+                <div class="flex-grow-1 w-100 min-w-0">
+                    <div class="d-flex flex-column flex-sm-row align-items-start align-items-sm-center justify-content-between gap-3">
+                        <div class="min-w-0">
+                            <h1 class="fw-black text-dark h3 m-0 text-truncate">{{ usuario.nombre }}</h1>
+                            <p class="text-muted small m-0 text-truncate">{{ usuario.correo }}</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <div class="container max-w-5xl mt-3">
+        <div class="row g-4">
+
+            <!-- Acerca de -->
+            <div class="col-12 col-md-4 col-lg-3">
+                <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
+                    <h6 class="fw-bold text-dark mb-3">Acerca de</h6>
+
+                    <div class="d-flex align-items-start gap-2 small mb-3">
+                        <i class="bi bi-person-badge text-primary mt-1"></i>
+                        <div>
+                            <div class="text-muted" style="font-size: .72rem;">Rol</div>
+                            <div class="fw-medium text-dark">{{ usuario.rol or 'Sin rol asignado' }}</div>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-start gap-2 small mb-3">
+                        <i class="bi bi-building text-primary mt-1"></i>
+                        <div>
+                            <div class="text-muted" style="font-size: .72rem;">Institución</div>
+                            <div class="fw-medium text-dark">Institución Educativa Sagrada Familia</div>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-start gap-2 small mb-3">
+                        <i class="bi bi-envelope text-primary mt-1"></i>
+                        <div class="min-w-0">
+                            <div class="text-muted" style="font-size: .72rem;">Correo</div>
+                            <div class="fw-medium text-dark text-break">{{ usuario.correo }}</div>
+                        </div>
+                    </div>
+                    {% if usuario.desde %}
+                    <div class="d-flex align-items-start gap-2 small">
+                        <i class="bi bi-calendar3 text-primary mt-1"></i>
+                        <div>
+                            <div class="text-muted" style="font-size: .72rem;">Miembro desde</div>
+                            <div class="fw-medium text-dark">{{ meses[usuario.desde.month - 1]|capitalize }} de {{ usuario.desde.year }}</div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Pestañas -->
+            <div class="col-12 col-md-8 col-lg-9">
+
+                <ul class="nav nav-pills bg-white border rounded-4 p-1 mb-4 shadow-sm flex-nowrap" id="perfilTabs" role="tablist">
+                    <li class="nav-item flex-fill" role="presentation">
+                        <button class="nav-link active w-100 rounded-3 small fw-medium" data-bs-toggle="pill" data-bs-target="#tab-proyectos" type="button" role="tab" aria-selected="true">
+                            <i class="bi bi-grid-3x3-gap me-1"></i><span class="d-none d-sm-inline">Mis </span>proyectos <span class="opacity-75">({{ proyectos|length }})</span>
+                        </button>
+                    </li>
+                    <li class="nav-item flex-fill" role="presentation">
+                        <button class="nav-link w-100 rounded-3 small fw-medium" data-bs-toggle="pill" data-bs-target="#tab-borradores" type="button" role="tab" aria-selected="false">
+                            <i class="bi bi-file-earmark-text me-1"></i>Borradores <span class="opacity-75">({{ borradores|length }})</span>
+                        </button>
+                    </li>
+                    <li class="nav-item flex-fill" role="presentation">
+                        <button class="nav-link w-100 rounded-3 small fw-medium" data-bs-toggle="pill" data-bs-target="#tab-guardados" type="button" role="tab" aria-selected="false">
+                            <i class="bi bi-bookmark me-1"></i><span class="d-none d-sm-inline">Guardados </span><span class="opacity-75">({{ guardados|length }})</span>
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    
+                    <!-- Mis proyectos -->
+                    <div class="tab-pane fade show active" id="tab-proyectos" role="tabpanel">
+                        <div class="row g-4 row-cols-1 row-cols-sm-2">
+                            {% for p in proyectos if p.estado|lower == 'publicado' %}{{ tarjeta(p, propio=True) }}{% endfor %}
+
+                            {# Filtramos para saber cuántos proyectos publicados tiene el usuario #}
+                            {% set publicados_count = namespace(total=0) %}
+                            {% for p in proyectos %}
+                                {% if p.estado|lower == 'publicado' %}
+                                    {% set publicados_count.total = publicados_count.total + 1 %}
+                                {% endif %}
+                            {% endfor %}
+
+                            {# Si NO tiene proyectos publicados, se muestra la tarjeta de invitación #}
+                            {% if publicados_count.total == 0 %}
+                            <div class="col">
+                                <a href="{{ url_for('subir') }}" class="new-project-card rounded-4 h-100 d-flex flex-column align-items-center justify-content-center text-center text-decoration-none py-5 gap-2" style="min-height: 220px;">
+                                    <div class="bg-primary-subtle text-primary rounded-4 d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                                        <i class="bi bi-upload fs-4"></i>
+                                    </div>
+                                    <p class="fw-semibold text-dark m-0">Aún no has subido tu proyecto</p>
+                                    <p class="text-muted small m-0 px-3">¡Inténtalo ahora! <span class="text-primary fw-medium">Haz clic aquí</span> para subir uno.</p>
+                                </a>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Borradores -->
+                    <div class="tab-pane fade" id="tab-borradores" role="tabpanel">
+                        {% if borradores %}
+                        <div class="row g-4 row-cols-1 row-cols-sm-2">
+                            {% for p in borradores %}{{ tarjeta(p, propio=True) }}{% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="text-center py-5">
+                            <i class="bi bi-file-earmark-check display-4 text-muted mb-3 d-block"></i>
+                            <p class="text-muted">No tienes ningún borrador guardado</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- Editar proyecto -->
+<div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="POST" id="edit-form" class="modal-content border-0 rounded-4 shadow">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold" id="editModalLabel"><i class="bi bi-pencil text-primary me-2"></i>Editar proyecto</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="edit-titulo" class="form-label small fw-semibold">Título</label>
+                    <input type="text" id="edit-titulo" name="titulo" class="form-control rounded-3" maxlength="200" required>
+                </div>
+                <div class="mb-3">
+                    <label for="edit-categoria" class="form-label small fw-semibold">Categoría</label>
+                    <select id="edit-categoria" name="categoria" class="form-select rounded-3" required>
+                        {% for c in categorias %}
+                        <option value="{{ c.id }}">{{ c.nombre }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label for="edit-descripcion" class="form-label small fw-semibold">Descripción</label>
+                    <textarea id="edit-descripcion" name="descripcion" class="form-control rounded-3" rows="5" required></textarea>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-outline-secondary rounded-pill px-4 flex-fill" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary rounded-pill px-4 flex-fill"><i class="bi bi-check2 me-1"></i>Guardar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Eliminar proyecto -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <form method="POST" id="delete-form" class="modal-content border-0 rounded-4 shadow text-center p-3">
+            <div class="modal-body">
+                <div class="bg-danger-subtle text-danger rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 48px; height: 48px;">
+                    <i class="bi bi-exclamation-triangle fs-4"></i>
+                </div>
+                <h5 class="fw-bold" id="deleteModalLabel">¿Eliminar proyecto?</h5>
+                <p class="text-muted small mb-0">
+                    Vas a eliminar <span class="fw-semibold text-dark" id="delete-titulo"></span>, junto con sus documentos, me gusta y valoraciones. Esta acción no se puede deshacer.
+                </p>
+            </div>
+            <div class="d-flex gap-2 mt-2">
+                <button type="button" class="btn btn-outline-secondary rounded-pill flex-fill" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-danger rounded-pill flex-fill"><i class="bi bi-trash me-1"></i>Eliminar</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const EDIT_URL = "{{ url_for('editar_proyecto', id=0) }}";
+    const DELETE_URL = "{{ url_for('eliminar_proyecto', id=0) }}";
+</script>
+<script src="{{ url_for('static', filename='js/mi_perfil.js') }}"></script>
+{% endblock %}

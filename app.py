@@ -178,6 +178,7 @@ def google_callback():
 
         google_id = userinfo.get('sub')
         email = userinfo.get('email')
+        foto_google = userinfo.get('picture')
 
         if not email:
             flash('Google no proporcionó un correo electrónico.', 'error')
@@ -234,16 +235,18 @@ def google_callback():
                         nombre_completo,
                         correo_usuario,
                         id_tipo,
-                        id_dominio
+                        id_dominio,
+                        foto_perfil
                     )
-                    VALUES (%s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                     RETURNING id_usuario, nombre_completo, correo_usuario;
                 """, (
                     google_id,
                     nombre,
                     email.strip(),
                     1,
-                    id_dominio
+                    id_dominio,
+                    foto_google
                 ))
 
                 usuario = cursor.fetchone()
@@ -251,12 +254,13 @@ def google_callback():
                 conn.commit()
 
             else:
-                # Vincula usuarios existentes con el dominio permitido.
+                # Vincula usuarios existentes y actualiza la foto de perfil y dominio.
                 cursor.execute("""
                     UPDATE usuarios
-                    SET id_dominio = %s
+                    SET id_dominio = %s,
+                        foto_perfil = COALESCE(%s, foto_perfil)
                     WHERE id_usuario = %s
-                """, (id_dominio, usuario['id_usuario']))
+                """, (id_dominio, foto_google, usuario['id_usuario']))
                 conn.commit()
 
             # ==================================================
@@ -371,14 +375,14 @@ def home():
 @app.route('/explorar')
 def explorar():
     filas = []
-    autores = [] # <--- NUEVO: Lista para almacenar los autores registrados con proyectos
+    autores = [] 
     conn = None
     cursor = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         
-        # (Tu consulta de proyectos existente se mantiene intacta)
+        
         cursor.execute("""
             SELECT p.id_proyecto AS id,
                    p.titulo,
@@ -398,9 +402,8 @@ def explorar():
             ORDER BY p.fecha_creacion DESC;
         """)
         filas = cursor.fetchall()
-        
-        # <--- NUEVO: Consulta optimizada basada estrictamente en tu esquema para traer 
-        # únicamente usuarios que tengan proyectos publicados, ordenados alfabéticamente.
+         
+        # Obtener autores distintos de proyectos publicados para el filtro
         cursor.execute("""
             SELECT DISTINCT u.id_usuario AS id, u.nombre_completo AS nombre
             FROM usuarios u
@@ -437,7 +440,6 @@ def explorar():
             'date': f['fecha_creacion'].timestamp() if f['fecha_creacion'] else 0,
         })
 
-    # <--- NUEVO: Se añade la variable autores al render_template
     return render_template('explorar_proyectos.html', proyectos=proyectos, autores=autores)
 
 @app.route('/acerca')
@@ -603,7 +605,9 @@ def ver_proyecto(id):
                            ya_like=ya_like, mi_valoracion=mi_valoracion,
                            total_valoraciones=total_valoraciones, es_autor=es_autor)
 
-
+# ==========================================================
+# RUTAS PARA LIKES Y VALORACIONES
+# ==========================================================
 @app.route('/proyecto/<int:id>/like', methods=['POST'])
 @login_required
 def toggle_like(id):
@@ -749,7 +753,7 @@ def subir():
         flash(mensaje, 'danger')
         return redirect(url_for('subir'))
 
-    # 1. Leer el formulario
+    # validar y procesar el formulario
     titulo = request.form.get('titulo', '').strip()
     descripcion = request.form.get('descripcion', '').strip()
     profesor = request.form.get('profesor', '').strip()
@@ -769,7 +773,7 @@ def subir():
     imagen = request.files.get('imagen_portada')
     documentos = [d for d in request.files.getlist('documentos') if d and d.filename]
 
-    # 2. Validar texto
+    # Validar texto
     if not all([titulo, descripcion, profesor, grado, etiquetas]) or id_categoria is None:
         return volver('Completa todos los campos obligatorios.')
     if len(titulo) > 200 or len(profesor) > 150 or len(grado) > 50:
@@ -783,7 +787,7 @@ def subir():
         if len(enlace) > 500 or ' ' in enlace or '.' not in enlace:
             return volver('El enlace del proyecto no es válido.')
 
-    # 3. Validar la portada
+    #  Validar la portada
     if not imagen or not imagen.filename:
         return volver('Elige una imagen de portada.')
     ext_img, tam_img, cab_img = info_archivo(imagen)
@@ -792,7 +796,7 @@ def subir():
     if tam_img > MAX_IMAGEN:
         return volver('La portada supera los 5 MB.')
 
-    # 4. Validar los documentos
+    # Validar los documentos
     if len(documentos) > MAX_DOCUMENTOS:
         return volver(f'Solo puedes subir hasta {MAX_DOCUMENTOS} documentos.')
 
@@ -808,10 +812,10 @@ def subir():
     if total_docs > MAX_TOTAL_DOCUMENTOS:
         return volver('Los documentos suman más de 10 MB. Quita alguno o reduce su tamaño.')
 
-    # 5. Guardar en la base de datos y en disco
+    # Guardar en la bd
     conn = None
     cursor = None
-    escritos = []          # archivos que ya están en disco
+    escritos = []          
     confirmado = False
     id_proyecto = None
 
@@ -904,11 +908,97 @@ def subir():
     flash('¡Proyecto guardado correctamente!', 'success')
     return redirect(url_for('ver_proyecto', id=id_proyecto))
 
-# Ruta del perfil
+#=========================================================
+# RUTA DE PERFIL DEL USUARIO
+#=========================================================
 @app.route('/perfil')
 @login_required
 def perfil():
-    return render_template('mi_perfil.html')
+    uid = session['user_id']
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        # datos del usuario y su rol
+        cursor.execute("""
+            SELECT u.nombre_completo AS nombre, u.correo_usuario AS correo, 
+                   u.foto_perfil AS foto, u.fecha_creacion AS desde,
+                   t.nombre_tipo AS rol
+            FROM usuarios u
+            LEFT JOIN tipos_usuario t ON t.id_tipo = u.id_tipo
+            WHERE u.id_usuario = %s;
+        """, (uid,))
+        usuario_db = cursor.fetchone()
+        
+        usuario = {
+            'nombre': usuario_db['nombre'],
+            'correo': usuario_db['correo'],
+            'foto': usuario_db['foto'],
+            'desde': usuario_db['desde'],
+            'rol': usuario_db['rol']
+        }
+
+        #  Mis proyectos 
+        cursor.execute("""
+            SELECT DISTINCT p.id_proyecto AS id, p.titulo, p.descripcion, 
+                   p.imagen_portada, p.estado, p.es_destacado AS destacado,
+                   p.vistas_count AS vistas, p.likes_count AS likes,
+                   p.calificacion::float AS rating, p.id_categoria,
+                   COALESCE(c.nombre_categoria, 'Sin categoría') AS categoria,
+                   (p.id_usuario = %s) AS es_autor,
+                   p.fecha_creacion
+            FROM proyectos p
+            LEFT JOIN categorias c ON c.id_categoria = p.id_categoria
+            LEFT JOIN proyecto_colaboradores pc ON pc.id_proyecto = p.id_proyecto
+            WHERE LOWER(p.estado) = 'publicado' 
+              AND (p.id_usuario = %s OR pc.id_usuario = %s)
+            ORDER BY p.fecha_creacion DESC;
+        """, (uid, uid, uid))
+        proyectos_raw = cursor.fetchall()
+        
+        proyectos = []
+        for p in proyectos_raw:
+            p_dict = dict(p)
+            p_dict['imagen'] = url_for('static', filename=p_dict['imagen_portada']) if p_dict['imagen_portada'] else ''
+            proyectos.append(p_dict)
+
+        #  Borradores 
+        cursor.execute("""
+            SELECT p.id_proyecto AS id, p.titulo, p.descripcion, 
+                   p.imagen_portada, p.estado, p.es_destacado AS destacado,
+                   p.vistas_count AS vistas, p.likes_count AS likes,
+                   p.calificacion::float AS rating, p.id_categoria,
+                   COALESCE(c.nombre_categoria, 'Sin categoría') AS categoria,
+                   TRUE AS es_autor,
+                   p.fecha_creacion
+            FROM proyectos p
+            LEFT JOIN categorias c ON c.id_categoria = p.id_categoria
+            WHERE LOWER(p.estado) = 'borrador' AND p.id_usuario = %s
+            ORDER BY p.fecha_creacion DESC;
+        """, (uid,))
+        borradores_raw = cursor.fetchall()
+        
+        borradores = []
+        for p in borradores_raw:
+            p_dict = dict(p)
+            p_dict['imagen'] = url_for('static', filename=p_dict['imagen_portada']) if p_dict['imagen_portada'] else ''
+            borradores.append(p_dict)
+
+        #  guardados o fav 
+        guardados = []
+
+        #  categorías 
+        cursor.execute("SELECT id_categoria AS id, nombre_categoria AS nombre FROM categorias ORDER BY nombre_categoria;")
+        categorias = cursor.fetchall()
+
+    except Exception:
+        app.logger.exception('Error cargando el perfil del usuario')
+        flash('No se pudo cargar la información del perfil.', 'danger')
+        usuario, proyectos, borradores, guardados, categorias = {}, [], [], [], []
+    finally:
+        cursor.close()
+        conn.close()
+
+    return render_template('mi_perfil.html', usuario=usuario, proyectos=proyectos, borradores=borradores, guardados=guardados, categorias=categorias)
 
 
 # ======================================================
@@ -952,6 +1042,74 @@ def logout():
     flash('Has cerrado sesión correctamente.', 'success')
     return redirect(url_for('login'))
 
+#=========================================================
+# RUTAS DE EDICIÓN DE PROYECTOS   
+#=========================================================
+@app.route('/proyecto/<int:id>/editar', methods=['POST'])
+@login_required
+def editar_proyecto(id):
+    uid = session['user_id']
+    titulo = request.form.get('titulo', '').strip()
+    descripcion = request.form.get('descripcion', '').strip() 
+    try:
+        id_categoria = int(request.form.get('categoria', ''))
+    except ValueError:
+        id_categoria = None
+
+    if not titulo or not descripcion or id_categoria is None:
+        flash('Completa todos los campos obligatorios para editar.', 'danger')
+        return redirect(url_for('perfil'))
+
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cursor.execute("SELECT id_usuario FROM proyectos WHERE id_proyecto = %s;", (id,))
+        p = cursor.fetchone()
+        if not p or p['id_usuario'] != uid:
+            abort(403)
+
+        cursor.execute("""
+            UPDATE proyectos
+            SET titulo = %s, descripcion = %s, id_categoria = %s #se actualiza el proyecto con los nuevos datos
+            WHERE id_proyecto = %s;
+        """, (titulo, descripcion, id_categoria, id))
+        conn.commit()
+        flash('¡Proyecto actualizado correctamente!', 'success') #sucess es para mostrar un mensaje de éxito en la interfaz
+    except Exception:
+        conn.rollback()
+        app.logger.exception('Error al actualizar el proyecto')
+        flash('No se pudo actualizar el proyecto.', 'danger') #danger es para mostrar un mensaje de error en la interfaz
+    finally:
+        cursor.close()
+        conn.close() #conn.close() cierra la conexión a la base de datos
+    return redirect(url_for('perfil'))
+
+#=========================================================
+# RUTAS DE ELIMINACIÓN DE PROYECTOS   
+#=========================================================
+@app.route('/proyecto/<int:id>/eliminar', methods=['POST'])
+@login_required
+def eliminar_proyecto(id):
+    uid = session['user_id']
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cursor.execute("SELECT id_usuario FROM proyectos WHERE id_proyecto = %s;", (id,))
+        p = cursor.fetchone()
+        if not p or p['id_usuario'] != uid:
+            abort(403)
+
+        cursor.execute("DELETE FROM proyectos WHERE id_proyecto = %s;", (id,))
+        conn.commit()
+        flash('Proyecto eliminado correctamente.', 'success')
+    except Exception:
+        conn.rollback()
+        app.logger.exception('Error al eliminar el proyecto')
+        flash('No se pudo eliminar el proyecto.', 'danger')
+    finally:
+        cursor.close()
+        conn.close()
+    return redirect(url_for('perfil'))
 
 if __name__ == '__main__':
     app.run(debug=True)

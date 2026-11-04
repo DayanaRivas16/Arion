@@ -1,0 +1,75 @@
+.max-w-5xl { 
+    max-width: 1024px; 
+}
+
+.min-w-0 { 
+    min-width: 0; 
+}
+
+.text-xs { 
+    font-size: .72rem; 
+}
+
+.border-t { 
+    border-top: 1px solid #f3f4f6; 
+}
+
+.clamp-2 { 
+    display: -webkit-box; 
+    -webkit-line-clamp: 2; 
+    -webkit-box-orient: vertical; 
+    overflow: hidden; 
+}
+
+.profile-cover-pattern {
+    background-image: radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px);
+    background-size: 40px 40px;
+}
+
+.avatar-bg { 
+    background: linear-gradient(135deg, #60a5fa, #2563eb); 
+}
+
+#perfilTabs .nav-link { 
+    color: #6c757d; 
+    padding: .6rem .5rem; 
+    white-space: nowrap; 
+}
+
+#perfilTabs .nav-link.active { 
+    background: #0d6efd; 
+    color: #fff; 
+    box-shadow: 0 4px 6px -1px rgba(13, 110, 253, .2); 
+}
+
+.custom-profile-card { 
+    transition: all .3s ease; 
+}
+
+.custom-profile-card:hover { 
+    transform: translateY(-4px); 
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, .06) !important; 
+}
+
+.custom-profile-card:hover .card-img-anim { 
+    transform: scale(1.04); 
+}
+
+.custom-profile-card:hover .card-title-hover { 
+    color: #0d6efd !important; 
+}
+
+.card-img-anim { 
+    transition: transform .3s ease; 
+}
+
+.new-project-card { 
+    background: rgba(248, 249, 250, .8); 
+    border: 2px dashed #dee2e6; 
+    transition: all .2s; 
+}
+
+.new-project-card:hover { 
+    border-color: #0d6efd; 
+    background: rgba(13, 110, 253, .05); 
+}
