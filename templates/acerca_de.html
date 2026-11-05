@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Acerca de{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-background font-inter">
+  
+  {# Sección Principal (AcercaDeSection equivalente) #}
+  {% include 'components/acerca_de_section.html' ignore missing %}
+
+  <!-- Docente encargado -->
+  <section class="relative overflow-hidden py-16 sm:py-20 bg-white">
+    <!-- Decoraciones de fondo -->
+    <div class="absolute top-0 left-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="absolute bottom-0 right-0 w-56 h-56 bg-accent/10 rounded-full blur-2xl pointer-events-none"></div>
+
+    <div class="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <!-- Encabezado de sección con animación Reveal -->
+      <div class="text-center mb-10 sm:mb-14 scroll-reveal">
+        <span class="inline-flex items-center gap-1.5 bg-accent/20 text-amber-700 text-sm font-semibold px-4 py-1.5 rounded-full mb-4">
+          <!-- Icono GraduationCap SVG -->
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 01-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/>
+          </svg>
+          Docente encargado
+        </span>
+        <h2 class="text-2xl sm:text-3xl md:text-4xl font-black text-foreground">Conoce al docente</h2>
+      </div>
+
+      <!-- Tarjeta del docente -->
+      <div class="bg-secondary/30 rounded-3xl border border-border shadow-sm p-6 sm:p-10 flex flex-col sm:flex-row items-center gap-6 sm:gap-10 scroll-reveal">
+        
+        <!-- Foto flotante (Efecto flotante vía CSS) -->
+        <div class="flex-shrink-0 animate-float">
+          <div class="w-36 h-36 sm:w-44 sm:h-44 rounded-full bg-gradient-to-br from-primary via-primary/80 to-accent p-[4px] shadow-xl">
+            <div class="w-full h-full rounded-full overflow-hidden border-2 border-white">
+              <img
+                src="{{ docente.imagen if docente else 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&fit=crop' }}"
+                alt="Docente encargado"
+                class="w-full h-full object-cover"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Información -->
+        <div class="text-center sm:text-left flex-1">
+          <h3 class="text-xl sm:text-2xl font-bold text-foreground">
+            {{ docente.nombre if docente else 'Nombre del docente' }}
+          </h3>
+          <p class="text-primary font-medium mt-1">
+            {{ docente.cargo if docente else 'Docente encargado de proyectos' }}
+          </p>
+          <p class="text-sm sm:text-base text-muted-foreground leading-relaxed mt-4 max-w-md mx-auto sm:mx-0">
+            Encargado de guiar y supervisar los proyectos de los estudiantes. Apoya la creatividad,
+            la innovación y el desarrollo de ideas que transforman la comunidad educativa.
+          </p>
+          
+          <div class="flex flex-col sm:flex-row gap-3 mt-6 justify-center sm:justify-start">
+            <div class="inline-flex items-center gap-2 text-sm text-muted-foreground bg-white rounded-full px-4 py-2 border border-border">
+              <!-- Icono Mail SVG -->
+              <svg class="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 002-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+              </svg>
+              {{ docente.correo if docente else 'correo@colegio.edu' }}
+            </div>
+            <div class="inline-flex items-center gap-2 text-sm text-muted-foreground bg-white rounded-full px-4 py-2 border border-border">
+              <!-- Icono BookOpen SVG -->
+              <svg class="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+              </svg>
+              Área: {{ docente.area if docente else 'Tecnología' }}
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+</div>
+{% endblock %}

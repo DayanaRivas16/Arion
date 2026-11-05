@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('edit-titulo').value = b.dataset.titulo || '';
             document.getElementById('edit-descripcion').value = b.dataset.descripcion || '';
             document.getElementById('edit-categoria').value = b.dataset.categoria || '';
+            document.getElementById('edit-estado').value = b.dataset.estado || 'publicado'; 
         });
     }
 

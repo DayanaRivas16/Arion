@@ -49,7 +49,7 @@
             <div class="d-flex gap-2 mt-3 position-relative" style="z-index: 2;">
                 <button type="button" class="btn btn-outline-secondary btn-sm flex-fill rounded-3 d-flex align-items-center justify-content-center gap-1"
                         style="height: 34px;" data-bs-toggle="modal" data-bs-target="#editModal"
-                        data-id="{{ p.id }}" data-titulo="{{ p.titulo }}" data-categoria="{{ p.id_categoria or '' }}" data-descripcion="{{ p.descripcion }}">
+                        data-id="{{ p.id }}" data-titulo="{{ p.titulo }}" data-categoria="{{ p.id_categoria or '' }}" data-descripcion="{{ p.descripcion }}"data-estado="{{ p.estado|lower }}">
                     <i class="bi bi-pencil"></i> Editar
                 </button>
                 <button type="button" class="btn btn-outline-danger btn-sm rounded-3 px-3" style="height: 34px;" aria-label="Eliminar {{ p.titulo }}"
@@ -209,11 +209,13 @@
         </div>
     </div>
 </div>
-
-<!-- Editar proyecto -->
 <div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <form method="POST" id="edit-form" class="modal-content border-0 rounded-4 shadow">
+        <!-- Reemplaza o ajusta el action según tu framework/rutas -->
+        <form method="POST" action="" id="edit-form" class="modal-content border-0 rounded-4 shadow">
+            <!-- Campo oculto para identificar el proyecto -->
+            <input type="hidden" id="edit-id" name="id">
+            
             <div class="modal-header border-0 pb-0">
                 <h5 class="modal-title fw-bold" id="editModalLabel"><i class="bi bi-pencil text-primary me-2"></i>Editar proyecto</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
@@ -222,6 +224,13 @@
                 <div class="mb-3">
                     <label for="edit-titulo" class="form-label small fw-semibold">Título</label>
                     <input type="text" id="edit-titulo" name="titulo" class="form-control rounded-3" maxlength="200" required>
+                </div>
+                <div class="mb-3">
+                    <label for="edit-estado" class="form-label small fw-semibold">Estado</label>
+                    <select id="edit-estado" name="estado" class="form-select rounded-3" required>
+                        <option value="publicado">Publicado</option>
+                        <option value="borrador">Borrador</option>
+                    </select>
                 </div>
                 <div class="mb-3">
                     <label for="edit-categoria" class="form-label small fw-semibold">Categoría</label>

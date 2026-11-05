@@ -1049,39 +1049,83 @@ def logout():
 @login_required
 def editar_proyecto(id):
     uid = session['user_id']
+    
+    # 1. Capturar datos del formulario
     titulo = request.form.get('titulo', '').strip()
     descripcion = request.form.get('descripcion', '').strip() 
+    estado_form = request.form.get('estado', '').strip().lower()
     try:
         id_categoria = int(request.form.get('categoria', ''))
     except ValueError:
         id_categoria = None
 
+    # 2. Validaciones básicas
     if not titulo or not descripcion or id_categoria is None:
         flash('Completa todos los campos obligatorios para editar.', 'danger')
+        return redirect(url_for('perfil'))
+        
+    if len(titulo) > 200:
+        flash('El título no puede superar los 200 caracteres.', 'danger')
+        return redirect(url_for('perfil'))
+    
+    if estado_form not in ('publicado', 'borrador'): 
+        flash('Selecciona un estado válido.', 'danger')
         return redirect(url_for('perfil'))
 
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        cursor.execute("SELECT id_usuario FROM proyectos WHERE id_proyecto = %s;", (id,))
-        p = cursor.fetchone()
-        if not p or p['id_usuario'] != uid:
+        # 3. Buscar si el proyecto existe
+        cursor.execute("""
+            SELECT p.id_usuario, u.id_tipo 
+            FROM proyectos p
+            JOIN usuarios u ON u.id_usuario = %s
+            WHERE p.id_proyecto = %s;
+        """, (uid, id))
+        resultado = cursor.fetchone()
+        
+        if not resultado:
+            abort(404)
+            
+        id_autor_proyecto = resultado['id_usuario']
+        tipo_usuario_actual = resultado['id_tipo']
+
+        cursor.execute("SELECT nombre_tipo FROM tipos_usuario WHERE id_tipo = %s;", (tipo_usuario_actual,))
+        tipo_rol = cursor.fetchone()
+        es_admin = tipo_rol and tipo_rol['nombre_tipo'].lower() in ['admin', 'administrador']
+
+        # 4. Validar permisos
+        if id_autor_proyecto != uid and not es_admin:
             abort(403)
 
+        cursor.execute("SELECT 1 FROM categorias WHERE id_categoria = %s;", (id_categoria,))
+        if not cursor.fetchone():
+            flash('La categoría seleccionada no es válida.', 'danger')
+            return redirect(url_for('perfil'))
+
+        # 5. ACTUALIZAR EL PROYECTO (debe ir AQUÍ al final)
+        nuevo_estado = 'Publicado' if estado_form == 'publicado' else 'Borrador'
         cursor.execute("""
             UPDATE proyectos
-            SET titulo = %s, descripcion = %s, id_categoria = %s #se actualiza el proyecto con los nuevos datos
+            SET titulo = %s, 
+                descripcion = %s, 
+                id_categoria = %s,
+                estado = %s
             WHERE id_proyecto = %s;
-        """, (titulo, descripcion, id_categoria, id))
+        """, (titulo, descripcion, id_categoria, nuevo_estado, id))
+        
         conn.commit()
-        flash('¡Proyecto actualizado correctamente!', 'success') #sucess es para mostrar un mensaje de éxito en la interfaz
+        flash('¡Proyecto actualizado correctamente!', 'success')
+        
     except Exception:
-        conn.rollback()
+        if conn:
+            conn.rollback()
         app.logger.exception('Error al actualizar el proyecto')
-        flash('No se pudo actualizar el proyecto.', 'danger') #danger es para mostrar un mensaje de error en la interfaz
+        flash('No se pudo actualizar el proyecto.', 'danger')
     finally:
         cursor.close()
-        conn.close() #conn.close() cierra la conexión a la base de datos
+        conn.close()
+        
     return redirect(url_for('perfil'))
 
 #=========================================================
