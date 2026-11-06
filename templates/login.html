@@ -1,87 +1,128 @@
-{% extends 'base.html' %}
-
-{% block title %}Iniciar Sesión - ARION{% endblock %}
-
+{% extends 'base.html' %} <!-- Hereda la estructura de la plantilla principal -->
+{% block title %}Iniciar Sesión - ARION{% endblock %} <!-- Título de la página -->
+{% block extra_css %} <!--Sección de css de login.css-->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+{% endblock %}
 {% block content %}
 
-<div class="row justify-content-center align-items-center my-5">
+<section class="auth-layout" aria-label="Acceso a ARION">
+    <!-- ==================================
+         PANEL IZQUIERDO: ACCESO
+    =================================== -->
+    <div class="auth-access-panel">
 
-    <div class="col-12 col-sm-8 col-md-6 col-lg-4">
+        <div class="auth-card view-fade-in">
 
-        <div class="card border-0 shadow-sm rounded-4 p-4 p-sm-5 bg-white">
+            <!-- Icono de bienvenida -->
+            <div class="auth-icon" aria-hidden="true">
+                <i class="bi bi-box-arrow-in-right"></i>
+            </div>
 
-            <div class="text-center mb-4">
+            <!-- Encabezado -->
+            <div class="auth-card-heading">
 
-                <div class="bg-primary-subtle text-primary rounded-circle
-                            d-flex align-items-center justify-content-center
-                            mx-auto mb-3"
-                     style="width: 56px; height: 56px;">
+                <h2>Bienvenido a ARION</h2>
 
-                    <i class="bi bi-box-arrow-in-right fs-3"></i>
-
-                </div>
-
-                <h2 class="fw-black text-dark h4 m-0">
-                    Bienvenido
-                </h2>
-
-                <p class="text-muted small mt-1">
-                    Inicia sesión con tu cuenta
+                <p>
+                    Continúa con tu cuenta institucional
                 </p>
 
             </div>
 
+            <!-- Acceso mediante Google -->
+            <a
+                href="{{ url_for('google_login') }}"
+                class="auth-google-btn"
+                aria-label="Continuar con Google"
+            >
 
-            <!-- GOOGLE -->
+                <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                >
 
-            <a href="{{ url_for('google_login') }}"
-               class="btn btn-white bg-white border text-dark w-100
-                      d-flex align-items-center justify-content-center
-                      gap-2 rounded-3 shadow-sm fw-medium
-                      text-decoration-none custom-auth-btn"
-               style="height: 48px;">
+                    <path
+                        fill="#4285F4"
+                        d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v3.92h6.61a5.66 5.66 0 0 1-2.45 3.71v3.08h3.95a12 12 0 0 0 3.63-8.64z"
+                    />
 
-                <svg width="18"
-                     height="18"
-                     viewBox="0 0 24 24"
-                     class="me-1">
+                    <path
+                        fill="#34A853"
+                        d="M12 24c3.24 0 5.97-1.08 7.96-2.91l-3.95-3.08c-1.1.74-2.51 1.18-4.01 1.18-3.09 0-5.71-2.09-6.64-4.9H1.31v3.18A12 12 0 0 0 12 24z"
+                    />
 
-                    <path fill="#4285F4"
-                          d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v3.92h6.61a5.66 5.66 0 0 1-2.45 3.71v3.08h3.95a12 12 0 0 0 3.63-8.64z"/>
+                    <path
+                        fill="#FBBC05"
+                        d="M5.36 14.29a7.16 7.16 0 0 1 0-4.58V6.53H1.31a12 12 0 0 0 0 10.94l4.05-3.18z"
+                    />
 
-                    <path fill="#34A853"
-                          d="M12 24c3.24 0 5.97-1.08 7.96-2.91l-3.95-3.08c-1.1.74-2.51 1.18-4.01 1.18-3.09 0-5.71-2.09-6.64-4.9H1.31v3.18A12 12 0 0 0 12 24z"/>
-
-                    <path fill="#FBBC05"
-                          d="M5.36 14.29a7.16 7.16 0 0 1 0-4.58V6.53H1.31a12 12 0 0 0 0 10.94l4.05-3.18z"/>
-
-                    <path fill="#EA4335"
-                          d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.43-3.43A11.93 11.93 0 0 0 12 0 12 12 0 0 0 1.31 6.53l4.05 3.18c.93-2.81 3.55-4.9 6.64-4.9z"/>
+                    <path
+                        fill="#EA4335"
+                        d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.43-3.43A11.93 11.93 0 0 0 12 0 11.93 11.93 0 0 0 1.31 6.53l4.05 3.18c.93-2.81 3.55-4.9 6.64-4.9z"
+                    />
 
                 </svg>
 
-                Continuar con Google
+                <span>Continuar con Google</span>
 
             </a>
 
+            <!-- Aviso institucional -->
+            <p class="auth-notice">
 
-            <div class="text-center mt-4 small text-muted">
+                Usa una cuenta institucional de uno de los
+                dominios autorizados por el colegio.
 
-                ¿No tienes una cuenta?
-
-                <a href="{{ url_for('register') }}"
-                   class="text-primary fw-medium text-decoration-none">
-
-                    Crear cuenta
-
-                </a>
-
-            </div>
+            </p>
 
         </div>
 
     </div>
 
-</div>
+    <!-- ==================================
+         PANEL DERECHO: BIENVENIDA ARION
+    =================================== -->
+    <div class="auth-welcome-panel">
 
+        <!-- Escenario de la mascota -->
+        <div class="auth-mascot-stage" aria-hidden="true">
+
+            <!-- Órbitas decorativas -->
+            <div class="auth-mascot-orbit"></div>
+
+            <!-- León ARION -->
+            <img
+                class="auth-mascot"
+                src="{{ url_for('static', filename='img/leo_principal.png') }}"
+                alt=""
+            >
+
+            <!-- Puntos decorativos -->
+            <span
+                class="auth-decoration-dot auth-decoration-dot-one"
+            ></span>
+
+            <span
+                class="auth-decoration-dot auth-decoration-dot-two"
+            ></span>
+
+        </div>
+
+        <!-- Identidad institucional -->
+        <div class="auth-brand-copy">
+
+            <span class="auth-eyebrow">
+                Nuestra comunidad
+            </span>
+
+            <h1>ARION</h1>
+
+            <p>
+                Las ideas crecen cuando se comparten
+            </p>
+        </div>
+    </div>
+</section>
 {% endblock %}

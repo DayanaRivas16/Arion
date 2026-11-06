@@ -117,15 +117,11 @@ def test_db():
             "status": "Error de conexión",
             "detalles": str(e)
         }), 500
-
-# =====================================================================
-# CONTROLES DE ACCESO Y DEMÁS RUTAS... 
-# =====================================================================
 # =====================================================================
 # CONTROLES DE ACCESO 
 # =====================================================================
-def login_required(f):
-    @wraps(f)
+def login_required(f): #login required es un decorador que protege rutas que requieren autenticación
+    @wraps(f) # el wraps preserva la información de la función original
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
             flash('Por favor, inicia sesión para acceder a esta página.', 'warning')
@@ -133,43 +129,30 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# =====================================================================
-# RUTAS PÚBLICAS
-# =====================================================================
-@app.route('/login')
+
+@app.route('/login') #muestra la página de login si no hay sesión activa, si ya hay sesión activa redirige al home
 def login():
 
     if 'user_id' in session:
         return redirect(url_for('home'))
-
     return render_template('login.html')
 
 @app.route('/register')
 def register():
-
-    if 'user_id' in session:
-        return redirect(url_for('home'))
-
-    return render_template('register.html')
+    return redirect(url_for('login'))
 
 # ======================================================
 # AUTENTICACIÓN CON GOOGLE
 # ======================================================
-
 @app.route('/login/google')
-def google_login():
+def google_login(): #inica el proceso de autenticación con Google
     redirect_uri = url_for('google_callback', _external=True)
     return google.authorize_redirect(redirect_uri)
 
-
 @app.route('/google/callback')
-def google_callback():
-
+def google_callback(): #maneja la respuesta de Google después de que el usuario autoriza la aplicación
     try:
-        # Obtener el token de Google
         token = google.authorize_access_token()
-
-        # Obtener información del usuario
         userinfo = token.get('userinfo')
 
         if not userinfo:
@@ -177,21 +160,33 @@ def google_callback():
             return redirect(url_for('login'))
 
         google_id = userinfo.get('sub')
-        email = userinfo.get('email')
+        email_google = userinfo.get('email')
         foto_google = userinfo.get('picture')
 
-        if not email:
+        if not isinstance(google_id, str) or not google_id.strip(): #isinstance verifica que google_id sea una cadena de texto y no esté vacía
+            flash('Google no proporcionó un identificador de usuario válido.', 'error')
+            return redirect(url_for('login'))
+
+        if not isinstance(email_google, str) or not email_google.strip():
             flash('Google no proporcionó un correo electrónico.', 'error')
             return redirect(url_for('login'))
 
-        # Solo permitir correos cuyo dominio esté registrado en la tabla
-        # dominios_permitidos. Se compara el dominio completo después de @.
-        partes_correo = email.strip().lower().rsplit('@', 1)
-        if len(partes_correo) != 2 or not all(partes_correo):
+        if userinfo.get('email_verified') is not True:
+            flash('Debes iniciar sesión con un correo verificado por Google.', 'error')
+            return redirect(url_for('login'))
+
+        google_id = google_id.strip()
+        email = email_google.strip().lower()
+        if email.count('@') != 1:
             flash('El correo electrónico no es válido.', 'error')
             return redirect(url_for('login'))
-        dominio_correo = partes_correo[1]
-        nombre = userinfo.get('name') or partes_correo[0]
+        parte_local, dominio_correo = email.split('@')
+        if not parte_local or not dominio_correo:
+            flash('El correo electrónico no es válido.', 'error')
+            return redirect(url_for('login'))
+
+        nombre_google = userinfo.get('name')
+        nombre = nombre_google.strip() if isinstance(nombre_google, str) and nombre_google.strip() else parte_local
 
         conn = None
         cursor = None
@@ -208,25 +203,70 @@ def google_callback():
             dominio_permitido = cursor.fetchone()
 
             if not dominio_permitido:
+                conn.rollback()
                 flash('Debes usar un correo de un dominio institucional permitido.', 'error')
                 return redirect(url_for('login'))
 
             id_dominio = dominio_permitido['id_dominio']
 
-            # Buscar si el usuario ya existe
             cursor.execute("""
-                SELECT id_usuario, nombre_completo, correo_usuario
+                SELECT id_usuario, nombre_completo, correo_usuario, google_id
                 FROM usuarios
-                WHERE correo_usuario = %s;
-            """, (email.strip(),))
+                WHERE LOWER(BTRIM(correo_usuario)) = %s
+                   OR google_id = %s
+                FOR UPDATE;
+            """, (email, google_id))
 
-            usuario = cursor.fetchone()
+            usuarios_encontrados = cursor.fetchall()
 
-            # ==================================================
-            # SI NO EXISTE → CREARLO
-            # ==================================================
+            if len(usuarios_encontrados) > 1:
+                conn.rollback()
+                app.logger.error(
+                    'La autenticación de Google encontró cuentas duplicadas para el correo o identificador.'
+                )
+                flash('No fue posible validar tu cuenta. Contacta al administrador.', 'error')
+                return redirect(url_for('login'))
 
-            if not usuario:
+            usuario = usuarios_encontrados[0] if usuarios_encontrados else None
+
+            if usuario and usuario['google_id'] not in (None, google_id):
+                conn.rollback()
+                flash(
+                    'Esta cuenta ya está vinculada a otra identidad de Google. Contacta al administrador.',
+                    'error'
+                )
+                return redirect(url_for('login'))
+
+            if usuario:
+                cursor.execute("""
+                    UPDATE usuarios
+                    SET google_id = COALESCE(google_id, %s),
+                        id_dominio = %s,
+                        foto_perfil = COALESCE(foto_perfil, %s)
+                    WHERE id_usuario = %s
+                      AND (google_id IS NULL OR google_id = %s)
+                    RETURNING id_usuario, nombre_completo, correo_usuario, google_id;
+                """, (
+                    google_id,
+                    id_dominio,
+                    foto_google,
+                    usuario['id_usuario'],
+                    google_id
+                ))
+                usuario = cursor.fetchone()
+                if not usuario:
+                    raise RuntimeError('La cuenta cambió durante la autenticación de Google.')
+            else:
+                cursor.execute("""
+                    SELECT id_tipo
+                    FROM tipos_usuario
+                    WHERE LOWER(BTRIM(nombre_tipo)) = %s;
+                """, ('estudiante',))
+                roles_estudiante = cursor.fetchall()
+                if len(roles_estudiante) != 1:
+                    raise RuntimeError(
+                        'Se esperaba exactamente un rol Estudiante en tipos_usuario.'
+                    )
 
                 cursor.execute("""
                     INSERT INTO usuarios
@@ -239,78 +279,45 @@ def google_callback():
                         foto_perfil
                     )
                     VALUES (%s, %s, %s, %s, %s, %s)
-                    RETURNING id_usuario, nombre_completo, correo_usuario;
+                    RETURNING id_usuario, nombre_completo, correo_usuario, google_id;
                 """, (
                     google_id,
                     nombre,
-                    email.strip(),
-                    1,
+                    email,
+                    roles_estudiante[0]['id_tipo'],
                     id_dominio,
                     foto_google
                 ))
 
                 usuario = cursor.fetchone()
 
-                conn.commit()
-
-            else:
-                # Vincula usuarios existentes y actualiza la foto de perfil y dominio.
-                cursor.execute("""
-                    UPDATE usuarios
-                    SET id_dominio = %s,
-                        foto_perfil = COALESCE(%s, foto_perfil)
-                    WHERE id_usuario = %s
-                """, (id_dominio, foto_google, usuario['id_usuario']))
-                conn.commit()
-
-            # ==================================================
-            # CREAR SESIÓN
-            # ==================================================
+            conn.commit()
 
             session.clear()
-
             session['user_id'] = usuario['id_usuario']
             session['user_name'] = usuario['nombre_completo']
             session['user_email'] = usuario['correo_usuario']
-            session['google_id'] = google_id
+            session['google_id'] = usuario['google_id']
 
             return redirect(url_for('home'))
 
         except Exception as e:
-
             if conn:
                 conn.rollback()
 
-            app.logger.exception(
-                f'Error registrando usuario con Google: {e}'
-            )
-
-            flash(
-                'Ocurrió un error al crear o iniciar tu cuenta.',
-                'error'
-            )
-
+            app.logger.exception('Error registrando o iniciando sesión con Google: %s', e)
+            flash('Ocurrió un error al crear o iniciar tu cuenta.', 'error')
             return redirect(url_for('login'))
 
         finally:
-
             if cursor:
                 cursor.close()
-
             if conn:
                 conn.close()
 
     except Exception as e:
-
-        app.logger.exception(
-            f'Error en autenticación de Google: {e}'
-        )
-
-        flash(
-            'No fue posible iniciar sesión con Google.',
-            'error'
-        )
-
+        app.logger.exception('Error en autenticación de Google: %s', e)
+        flash('No fue posible iniciar sesión con Google.', 'error')
         return redirect(url_for('login'))
 
 
@@ -1029,11 +1036,8 @@ def page_not_found(e):
 
 @app.route('/error-registro')
 def user_not_registered_error():
-    # plantilla no incluida; redirigir al registro o mostrar mensaje
-    try:
-        return render_template('register.html')
-    except Exception:
-        return "Usuario no registrado.", 200
+    flash('Continúa con Google usando tu cuenta institucional.', 'warning')
+    return redirect(url_for('login'))
 
 # Ruta auxiliar para cerrar sesión
 @app.route('/logout')

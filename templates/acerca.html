@@ -45,7 +45,7 @@
 
 {% if not session.get('user_id') %}
 <div class="text-center">
-    <a href="{{ url_for('register') }}" class="btn btn-primary rounded-pill px-4">Crear una cuenta</a>
+    <a href="{{ url_for('login') }}" class="btn btn-primary rounded-pill px-4">Acceder con Google</a>
 </div>
 {% endif %}
 {% endblock %}

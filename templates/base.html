@@ -58,11 +58,8 @@
 
                 <div class="d-flex flex-column flex-md-row gap-2 pt-2 pt-md-0 border-top border-md-0 mt-2 mt-md-0">
                     {% if not session.get('user_id') %}
-                        <a href="{{ url_for('login') }}" class="btn btn-outline-primary rounded-pill px-4fw-medium">
-                            Iniciar sesión
-                        </a>
-                        <a href="{{ url_for('register') }}" class="btn btn-primary rounded-pill px-4 fw-medium">
-                            Registrarse
+                        <a href="{{ url_for('login') }}" class="btn btn-primary rounded-pill px-4 fw-medium">
+                            Acceder
                         </a>
                     {% else %}
                         <a href="{{ url_for('logout') }}" class="btn btn-outline-danger rounded-pill px-4 fw-medium">
