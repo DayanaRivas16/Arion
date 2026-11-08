@@ -15,6 +15,244 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY')
 
+# =====================================================================
+# PANEL DE ADMINISTRADOR: acceso, base del panel y gestión de usuarios
+# =====================================================================
+
+ID_TIPO_ESTUDIANTE = 1
+ID_TIPO_DOCENTE = 2
+ID_TIPO_ADMIN = 3
+
+# ---------------------------------------------------------------------
+# Acceso a la base de datos (para no repetir conexión y cursor en cada ruta)
+# ---------------------------------------------------------------------
+def consultar(sql, params=None, uno=False):
+    """Corre un SELECT. Devuelve una lista de diccionarios, o un solo diccionario si uno=True."""
+    conn = cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(sql, params or ())
+        return cur.fetchone() if uno else cur.fetchall()
+    finally:
+        if cur: cur.close()
+        if conn: conn.close()
+
+
+def ejecutar_uno(sql, params=None):
+    """Corre un INSERT/UPDATE/DELETE y guarda el cambio. Devuelve la fila del RETURNING,
+    o None si no afectó ninguna fila (por ejemplo, si el id no existe)."""
+    conn = cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(sql, params or ())
+        # cur.description solo existe cuando la consulta lleva RETURNING
+        fila = cur.fetchone() if cur.description else None
+        conn.commit()
+        return fila
+    except Exception:
+        if conn: conn.rollback()                         # si algo falla no queda nada a medias
+        raise
+    finally:
+        if cur: cur.close()
+        if conn: conn.close()
+
+
+def _ok(msg):
+    return jsonify(ok=True, msg=msg)
+
+
+def _no(msg, codigo=404):
+    return jsonify(ok=False, msg=msg), codigo
+
+
+# ---------------------------------------------------------------------
+# Roles
+# ---------------------------------------------------------------------
+def rol_clave(id_tipo):
+    """Resume el id_tipo en administrador / docente / estudiante. Solo se usa para escoger
+    el color de la etiqueta; el nombre que se muestra sale de tipos_usuario."""
+    return {ID_TIPO_ADMIN: 'administrador', ID_TIPO_DOCENTE: 'docente'}.get(id_tipo, 'estudiante')
+
+
+@app.template_filter('iniciales')
+def iniciales(nombre):
+    """'Ana Sofía Rodríguez' -> 'AS' (el circulito del avatar en la tabla)."""
+    partes = (nombre or '?').split()
+    return (partes[0][0] + (partes[1][0] if len(partes) > 1 else '')).upper()
+
+
+# ---------------------------------------------------------------------
+# Seguridad
+# ---------------------------------------------------------------------
+def admin_required(f):
+    """Deja pasar solo a un administrador. El rol se guarda en la sesión (session['id_tipo'])
+    cuando la persona inicia sesión, así que no hace falta consultar la BD en cada página.
+    Esta verificación es la que protege el panel de verdad: la redirección del login solo
+    decide a dónde mandar a cada quien, pero cualquiera podría escribir /admin/... en la barra."""
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Por favor, inicia sesión para acceder a esta página.', 'warning')
+            return redirect(url_for('login'))
+        if session.get('id_tipo') != ID_TIPO_ADMIN:
+            # las llamadas fetch esperan JSON; las páginas normales, un 403
+            if request.path.startswith('/admin/api/'):
+                return _no('No tienes permisos de administrador.', 403)
+            abort(403)
+        return f(*args, **kwargs)
+    return wrapper
+
+
+def api_seguro(f):
+    """Si algo revienta en una ruta /admin/api/ devolvemos JSON con el error, para que el
+    JS lo muestre en el aviso en vez de recibir la página de error de Flask."""
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except Exception as e:
+            app.logger.exception(f'Error en {request.path}: {e}')
+            return _no('Hubo un error en el servidor, intenta de nuevo.', 500)
+    return wrapper
+
+
+# ---------------------------------------------------------------------
+# Ruta de entrada al panel
+# ---------------------------------------------------------------------
+@app.route('/admin/')
+@admin_required
+def admin_dashboard():
+    # Mientras el dashboard no esté listo, el panel abre directo en Usuarios.
+    # Cuando exista su plantilla, cambiar esta línea por:
+    #     return render_template('admin/dashboard.html', ...)
+    return redirect(url_for('admin_usuarios'))
+
+
+# Rutas de las secciones que aparecen en la barra de navegación del administrador.
+# Cada sección usa la misma protección admin_required que impide el acceso a usuarios normales.
+@app.route('/admin/proyectos')
+@admin_required
+def admin_proyectos():
+    return render_template('admin/proyectos.html')
+
+
+@app.route('/admin/reportes')
+@admin_required
+def admin_reportes():
+    return render_template('admin/reportes.html')
+
+
+@app.route('/admin/configuracion')
+@admin_required
+def admin_configuracion():
+    return render_template('admin/configuracion.html')
+
+
+# ---------------------------------------------------------------------
+# Gestión de usuarios: pantalla
+# ---------------------------------------------------------------------
+@app.route('/admin/usuarios')
+@admin_required
+def admin_usuarios():
+    q = request.args.get('q', '').strip()
+    rol = request.args.get('rol', type=int)              # id_tipo elegido en el filtro (o None)
+    grado = request.args.get('grado', '')
+
+    # El WHERE se arma por pedazos según los filtros que lleguen. Los valores van siempre
+    # en `params` (nunca pegados al texto del SQL) para evitar inyección.
+    filtros, params = [], []
+    if q:
+        filtros.append("(LOWER(u.nombre_completo) LIKE %s OR LOWER(u.correo_usuario) LIKE %s "
+                       "OR CAST(u.id_usuario AS TEXT) LIKE %s)")
+        params += [f"%{q.lower()}%"] * 3
+    if rol:
+        filtros.append("u.id_tipo = %s")
+        params.append(rol)
+    if grado:
+        filtros.append("u.grado = %s")
+        params.append(grado)
+    donde = ("WHERE " + " AND ".join(filtros)) if filtros else ""
+    desde = "FROM usuarios u LEFT JOIN tipos_usuario t ON t.id_tipo = u.id_tipo"
+
+    # Paginación: 10 por página. El total sirve para saber cuántas páginas hay.
+    por_pagina = 10
+    total = consultar(f"SELECT COUNT(*) AS n {desde} {donde}", params, uno=True)['n']
+    paginas = max(1, -(-total // por_pagina))            # división hacia arriba
+    pagina = min(max(request.args.get('page', 1, type=int), 1), paginas)
+
+    filas = consultar(f"""
+        SELECT u.id_usuario AS id, u.nombre_completo AS nombre, u.correo_usuario AS correo,
+               u.id_tipo, t.nombre_tipo AS rol, u.grado, u.activo
+        {desde} {donde}
+        ORDER BY u.nombre_completo
+        LIMIT %s OFFSET %s
+    """, params + [por_pagina, (pagina - 1) * por_pagina])
+    for u in filas:                                      # datos listos para que la plantilla los muestre tal cual
+        u['rol'] = u['rol'] or 'Sin rol'
+        u['es_admin'] = u['id_tipo'] == ID_TIPO_ADMIN
+        u['rol_clave'] = rol_clave(u['id_tipo'])
+        u['grado'] = u['grado'] or 'N/A'
+        u['estado'] = 'Activo' if u['activo'] else 'Inactivo'
+
+    # Opciones de los filtros y del modal de edición
+    roles = consultar("SELECT id_tipo AS id, nombre_tipo AS nombre FROM tipos_usuario ORDER BY id_tipo")
+    grados = [g['grado'] for g in consultar(
+        "SELECT DISTINCT grado FROM usuarios WHERE grado IS NOT NULL AND grado <> '' ORDER BY grado")]
+    return render_template('admin/usuarios.html', usuarios=filas, total=total, pagina=pagina,
+                           paginas=paginas, q=q, rol=rol, grado=grado, grados=grados, roles=roles,
+                           roles_editables=[r for r in roles if r['id'] != ID_TIPO_ADMIN])
+
+
+# ---------------------------------------------------------------------
+# Gestión de usuarios: acciones (las llama admin.js con fetch y responden JSON)
+# ---------------------------------------------------------------------
+@app.route('/admin/api/usuarios/<int:uid>', methods=['PUT'])
+@admin_required
+@api_seguro
+def admin_api_editar_usuario(uid):
+    d = request.get_json(silent=True) or {}
+    nombre = (d.get('nombre') or '').strip()
+    if not nombre:
+        return _no('El nombre es obligatorio.', 400)
+
+    # El rol llega como id. Se comprueba que exista en tipos_usuario y que no sea el de
+    # administrador: ese rol no se asigna desde esta pantalla.
+    try:
+        id_tipo = int(d.get('rol'))
+    except (TypeError, ValueError):
+        return _no('Rol no válido.', 400)
+    existe = consultar("SELECT 1 FROM tipos_usuario WHERE id_tipo = %s", (id_tipo,), uno=True)
+    if not existe or id_tipo == ID_TIPO_ADMIN:
+        return _no('Rol no válido.', 400)
+
+    # Los docentes no tienen grado; a los estudiantes se les recorta a 10 caracteres (el tamaño de la columna)
+    grado = None if id_tipo == ID_TIPO_DOCENTE else ((d.get('grado') or '').strip()[:10] or None)
+
+    # El "id_tipo <> admin" del final evita que se pueda editar a un administrador desde acá
+    fila = ejecutar_uno("""UPDATE usuarios SET nombre_completo = %s, id_tipo = %s, grado = %s
+                           WHERE id_usuario = %s AND id_tipo <> %s
+                           RETURNING id_usuario""",
+                        (nombre, id_tipo, grado, uid, ID_TIPO_ADMIN))
+    return _ok('Usuario actualizado.') if fila else _no('Usuario no encontrado.')
+
+
+@app.route('/admin/api/usuarios/<int:uid>/estado', methods=['POST'])
+@admin_required
+@api_seguro
+def admin_api_estado_usuario(uid):
+    # Bloquear/activar: NOT activo invierte el valor que tenga. Un admin no puede bloquearse a sí mismo
+    # ni a otros administradores.
+    if uid == session.get('user_id'):
+        return _no('No puedes bloquear tu propia cuenta.', 400)
+    fila = ejecutar_uno("""UPDATE usuarios SET activo = NOT activo
+                           WHERE id_usuario = %s AND id_tipo <> %s
+                           RETURNING nombre_completo, activo""", (uid, ID_TIPO_ADMIN))
+    if not fila:
+        return _no('Usuario no encontrado.')
+    return _ok(f'{fila["nombre_completo"]} ahora está {"activo" if fila["activo"] else "bloqueado"}.')
+
 
 # ======================================================
 # CONFIGURACIÓN DE CARGA DE ARCHIVOS    
@@ -134,6 +372,8 @@ def login_required(f): #login required es un decorador que protege rutas que req
 def login():
 
     if 'user_id' in session:
+        if session.get('id_tipo') == ID_TIPO_ADMIN:
+            return redirect(url_for('admin_dashboard'))
         return redirect(url_for('home'))
     return render_template('login.html')
 
@@ -210,7 +450,7 @@ def google_callback(): #maneja la respuesta de Google después de que el usuario
             id_dominio = dominio_permitido['id_dominio']
 
             cursor.execute("""
-                SELECT id_usuario, nombre_completo, correo_usuario, google_id
+                SELECT id_usuario, nombre_completo, correo_usuario, google_id, id_tipo
                 FROM usuarios
                 WHERE LOWER(BTRIM(correo_usuario)) = %s
                    OR google_id = %s
@@ -245,7 +485,7 @@ def google_callback(): #maneja la respuesta de Google después de que el usuario
                         foto_perfil = COALESCE(foto_perfil, %s)
                     WHERE id_usuario = %s
                       AND (google_id IS NULL OR google_id = %s)
-                    RETURNING id_usuario, nombre_completo, correo_usuario, google_id;
+                    RETURNING id_usuario, nombre_completo, correo_usuario, google_id, id_tipo;
                 """, (
                     google_id,
                     id_dominio,
@@ -279,7 +519,7 @@ def google_callback(): #maneja la respuesta de Google después de que el usuario
                         foto_perfil
                     )
                     VALUES (%s, %s, %s, %s, %s, %s)
-                    RETURNING id_usuario, nombre_completo, correo_usuario, google_id;
+                    RETURNING id_usuario, nombre_completo, correo_usuario, google_id, id_tipo;
                 """, (
                     google_id,
                     nombre,
@@ -298,7 +538,10 @@ def google_callback(): #maneja la respuesta de Google después de que el usuario
             session['user_name'] = usuario['nombre_completo']
             session['user_email'] = usuario['correo_usuario']
             session['google_id'] = usuario['google_id']
+            session['id_tipo'] = usuario['id_tipo']
 
+            if usuario['id_tipo'] == ID_TIPO_ADMIN:
+                return redirect(url_for('admin_dashboard'))
             return redirect(url_for('home'))
 
         except Exception as e:
@@ -1042,7 +1285,7 @@ def user_not_registered_error():
 # Ruta auxiliar para cerrar sesión
 @app.route('/logout')
 def logout():
-    session.pop('user_id', None)
+    session.clear()
     flash('Has cerrado sesión correctamente.', 'success')
     return redirect(url_for('login'))
 

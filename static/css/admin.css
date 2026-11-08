@@ -1,0 +1,271 @@
+/* Variables de diseño reutilizadas en todo el panel administrativo. */
+:root{
+  --blue:#2563eb; --blue-d:#1d4ed8; --blue-l:#eff6ff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --bg:#f8fafc;
+  --green:#059669; --green-l:#ecfdf5; --amber:#d97706; --amber-l:#fffbeb; --red:#e11d48; --red-l:#fff1f2;
+  --purple:#9333ea; --purple-l:#faf5ff; --gold-l:#fef3c7; --r:14px;
+}
+/* Incluye el relleno y los bordes dentro del tamaño total de cada elemento. */
+*{box-sizing:border-box}
+/* Define la apariencia general de toda la página del administrador. */
+body.adm{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 'Plus Jakarta Sans',system-ui,sans-serif}
+a{color:inherit;text-decoration:none}s
+/* Elimina los márgenes predeterminados de los títulos y párrafos. */
+h1,h2,h3,p{margin:0}
+/* Centra el contenido y limita su ancho máximo. */
+.wrap{max-width:1100px;margin:0 auto;padding:0 20px}
+/* Separa el contenido principal de los extremos superior e inferior. */
+.page{padding-top:24px;padding-bottom:48px}
+
+/* Barra superior fija en la parte superior mientras se desplaza la página. */
+.nav{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
+/* Organiza el nombre ARION, los enlaces y el avatar en una sola línea. */
+.nav-in{display:flex;align-items:center;gap:28px;height:56px}
+/* Estilo visual del nombre del proyecto en la barra. */
+.brand{font-weight:800;font-size:20px;color:var(--blue);letter-spacing:.02em}
+/* Coloca los enlaces del menú de forma horizontal y permite desplazarlos en celulares. */
+.links{display:flex;gap:20px;flex:1;overflow-x:auto;scrollbar-width:none}   /* en celular se desliza de lado */
+/* Apariencia normal de cada opción del menú. */
+.links a{font-size:13px;color:#334155;padding:17px 0 15px;border-bottom:2px solid transparent;white-space:nowrap}
+/* Cambia el enlace a azul al pasar el cursor. */
+.links a:hover{color:var(--blue)}
+/* Resalta la sección actual con color azul y una línea inferior. */
+.links a.active{color:var(--blue);border-color:var(--blue);font-weight:600}
+/* Agrupa la etiqueta de administrador y el avatar. */
+.user{display:flex;align-items:center;gap:10px}
+/* Estilo base de las etiquetas pequeñas redondeadas. */
+.pill{font-size:11px;font-weight:600;padding:3px 10px;border-radius:99px}
+/* Aplicación azul claro para la etiqueta que identifica al administrador. */
+.pill-blue{background:#dbeafe;color:var(--blue-d)}
+/* Muestra el avatar como un círculo pequeño con la inicial del usuario. */
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center;font-weight:700}
+
+/* Encabezados de página y clases auxiliares reutilizables. */
+.page-head{margin-bottom:20px}
+/* Define el tamaño principal del título de cada sección. */
+.page-head h1{font-size:22px;font-weight:700}
+/* Describe brevemente la función de la sección debajo del título. */
+.sub{color:var(--muted);font-size:12px;margin-top:2px}
+/* Utilidades para texto pequeño, contenido en negrita, centrado y sin saltos. */
+.xs{font-size:11px}.strong{font-weight:600}.c{text-align:center}.nowrap{white-space:nowrap}
+/* Aplica un color gris suave al texto secundario. */
+.t-muted{color:var(--muted)}
+/* Centra el mensaje mostrado cuando una búsqueda no encuentra resultados. */
+.empty{text-align:center;color:var(--muted);padding:28px 12px}
+
+/* Contenedores blancos con borde, bordes redondeados y sombra suave. */
+.card{background:#fff;border:1px solid var(--line);border-radius:var(--r);box-shadow:0 1px 2px rgba(15,23,42,.04)}
+/* Agrega relleno interior y separación inferior a una sección. */
+.block{padding:22px;margin-bottom:20px}
+/* Elimina el relleno para que una tabla llegue hasta los bordes de la tarjeta. */
+.block.flush{padding:0;overflow:hidden}              /* sin relleno: la tabla llega hasta el borde */
+
+/* Estilo general de los botones del panel. */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:0;border-radius:8px;padding:9px 16px;font:600 13px 'Plus Jakarta Sans',sans-serif;cursor:pointer;transition:.15s}
+/* Indica que el botón está deshabilitado mientras se procesa una acción. */
+.btn:disabled{opacity:.55;cursor:wait}               /* mientras el servidor responde */
+/* Reduce el tamaño de los botones colocados dentro de la tabla. */
+.btn-sm{padding:6px 12px;font-size:11.5px}
+/* Botón azul principal; al pasar el cursor se vuelve azul oscuro. */
+.btn-primary{background:var(--blue);color:#fff}.btn-primary:hover{background:var(--blue-d)}
+/* Botón gris claro para acciones secundarias o cancelaciones. */
+.btn-soft{background:#f1f5f9;color:#334155}.btn-soft:hover{background:#e2e8f0}
+/* Botones de peligro y éxito con sus colores al pasar el cursor. */
+.btn-danger{background:var(--red-l);color:var(--red)}.btn-danger:hover{background:#ffe4e6}
+.btn-success{background:var(--green-l);color:var(--green)}.btn-success:hover{background:#d1fae5}
+/* Mantiene el botón rojo de cerrar sesión con el mismo aspecto que el de la página principal. */
+.btn.btn-outline-danger{font:500 14px/1.5 'Plus Jakarta Sans',sans-serif;padding:.375rem 1.5rem;border:1px solid #dc3545;border-radius:50rem;background:#fff;color:#dc3545}
+.btn.btn-outline-danger:hover{background:#dc3545;color:#fff;border-color:#dc3545}
+
+/* Etiquetas redondeadas utilizadas para mostrar roles y estados. */
+.chip{display:inline-block;font-size:11px;font-weight:500;padding:2px 10px;border-radius:99px;background:#f1f5f9;color:#475569}
+/* Colores verde y ámbar para estados activo y pendiente o bloqueado. */
+.chip-green{background:var(--green-l);color:var(--green)}.chip-amber{background:var(--amber-l);color:var(--amber)}
+/* Colores de los roles estudiante, docente y administrador. */
+.chip-blue{background:#dbeafe;color:var(--blue-d)}.chip-purple{background:var(--purple-l);color:var(--purple)}
+.chip-gold{background:var(--gold-l);color:#b45309}
+
+/* Tabla de usuarios y navegación entre páginas. */
+/* Permite desplazamiento horizontal cuando la tabla no cabe en una pantalla pequeña. */
+.table-wrap{overflow-x:auto}                         /* si no cabe en pantalla, la tabla se desliza sola */
+/* La tabla ocupa todo el ancho y une visualmente sus bordes internos. */
+.tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+/* Da formato uniforme a los encabezados de todas las columnas. */
+.tbl th{background:#f8fafc;color:var(--muted);font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;text-align:left;padding:11px 16px}
+/* Mantiene centradas las columnas marcadas como centradas. */
+.tbl th.c{text-align:center}
+/* Define el relleno y la separación horizontal de cada celda. */
+.tbl td{padding:14px 16px;border-top:1px solid #f1f5f9;vertical-align:middle}
+/* Barra inferior con la cantidad mostrada y los controles de paginación. */
+.tbl-foot{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#f8fafc;border-top:1px solid var(--line);gap:10px;flex-wrap:wrap}
+/* Coloca el avatar junto al nombre y el identificador de cada usuario. */
+.person{display:flex;align-items:center;gap:10px}
+/* Crea el avatar circular pequeño que contiene las iniciales. */
+.ava{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;flex:none}
+/* Alterna los fondos azul y dorado según el usuario mostrado. */
+.ava-blue{background:#dbeafe;color:var(--blue-d)}.ava-amber{background:var(--gold-l);color:#b45309}
+/* Agrupa los botones y números de paginación. */
+.pager{display:flex;gap:4px}
+/* Estilo normal de cada enlace de página. */
+.pager a,.pager span{padding:4px 10px;border:1px solid var(--line);border-radius:6px;background:#fff;font-size:11px}
+/* Cambia el borde y el texto al pasar el cursor sobre una página. */
+.pager a:hover{border-color:var(--blue);color:var(--blue)}
+/* Resalta visualmente la página abierta actualmente. */
+.pager a.on{background:var(--blue);border-color:var(--blue);color:#fff}   /* página actual */
+/* Atenúa anterior o siguiente cuando no existe una página válida hacia ese lado. */
+.pager .off{color:#cbd5e1}                                               /* "Anterior"/"Siguiente" sin destino */
+
+/* Campos de texto, listas desplegables y barra de filtros. */
+/* Conserva la tipografía y el color definidos para el resto del panel. */
+input,select{font:inherit;color:var(--ink)}
+/* Define fondo claro, borde gris y esquinas redondeadas para los controles. */
+input,select{width:100%;background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:10px 12px;outline:none}
+/* Añade borde azul y una sombra suave mientras el usuario escribe o selecciona. */
+input:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.12);background:#fff}
+/* Diseña las etiquetas pequeñas ubicadas encima de los campos. */
+label{display:block;font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+/* Ajusta la tipografía de los controles colocados dentro de una etiqueta. */
+label input,label select{margin-top:6px;text-transform:none;letter-spacing:0;font-weight:400;font-size:13px}
+/* Distribuye la búsqueda y los filtros; permite que los elementos bajen en pantallas pequeñas. */
+.toolbar{display:flex;justify-content:space-between;gap:12px;padding:14px 16px;margin-bottom:16px;flex-wrap:wrap}
+/* Hace que el campo de búsqueda pueda posicionar la lupa dentro de su contenido. */
+.search{position:relative;flex:1;min-width:220px;max-width:340px}
+/* Ubica la lupa a la izquierda y la centra verticalmente sin bloquear clics sobre el campo. */
+.search > .bi-search{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--blue);font-size:14px;pointer-events:none}
+/* Reserva espacio interior izquierdo para que el texto escrito no se superponga con la lupa. */
+.search input{padding-left:34px}                     /* deja espacio para la lupa */
+/* Mantiene separados los filtros de rol y grado y les permite crecer individualmente. */
+.toolbar-right{display:flex;gap:10px}.toolbar-right select{width:auto;min-width:120px}
+
+/* Ventana modal utilizada para editar la información de un usuario. */
+/* Establece bordes, ancho adaptable y sombra de la ventana. */
+.dlg{border:0;border-radius:var(--r);padding:24px;width:min(420px,92vw);box-shadow:0 25px 50px -12px rgba(15,23,42,.35)}
+/* Oscurece el fondo mientras el diálogo permanece abierto. */
+.dlg::backdrop{background:rgba(15,23,42,.45)}
+/* Separa el título del formulario que aparece debajo. */
+.dlg h3{font-size:16px;margin-bottom:16px}
+/* Agrega espacio inferior entre los campos del formulario. */
+.dlg label{margin-bottom:14px}
+/* Coloca las opciones de cancelar y guardar al lado derecho. */
+.dlg-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
+
+/* Aviso flotante temporal ubicado en la esquina inferior derecha. */
+/* Mantiene el aviso oculto hasta que JavaScript lo hace visible. */
+.toast{position:fixed;right:20px;bottom:20px;background:var(--ink);color:#fff;padding:12px 18px;border-radius:10px;font-size:13px;box-shadow:0 10px 25px rgba(0,0,0,.25);opacity:0;transform:translateY(12px);pointer-events:none;transition:.25s;z-index:50;max-width:320px}
+/* Muestra el aviso y, si se trata de un error, cambia su fondo a rojo. */
+.toast.show{opacity:1;transform:none}.toast.err{background:var(--red)}
+
+/* Adaptaciones visuales para dispositivos con menos de 640 píxeles de ancho. */
+@media(max-width:640px){
+  /* Reduce espacios y oculta elementos secundarios para aprovechar el ancho disponible. */
+  .nav-in{gap:12px}.pill{display:none}
+  /* Los filtros ocupan toda la fila y se reparten el espacio disponible. */
+  .toolbar-right{width:100%}.toolbar-right select{flex:1}
+}
+
+/* =================================
+   VENTANA DE CONFIRMACIÓN
+================================= */
+
+/* Contenedor principal de la ventana que pregunta si continuar con una acción. */
+.confirm-dialog {
+    /* Limita el ancho y agrega relleno alrededor del contenido. */
+    width: min(390px, 92vw);
+    padding: 30px 26px;
+    /* Elimina el borde predeterminado y aplica esquinas redondeadas. */
+    border: none;
+    border-radius: 18px;
+    /* Define el fondo blanco, el texto oscuro y la alineación central. */
+    background: #ffffff;
+    color: #0f172a;
+    text-align: center;
+    /* Crea una sombra amplia alrededor de la ventana. */
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18);
+    /* Permite que el navegador centre automáticamente el diálogo. */
+    margin: auto;
+}
+
+/* Fondo oscuro semitransparente que aparece detrás de la ventana. */
+.confirm-dialog::backdrop {
+    background: rgba(15, 23, 42, 0.48);
+    /* Desenfoca ligeramente el contenido que quedó detrás del diálogo. */
+    backdrop-filter: blur(3px);
+}
+
+/* Círculo utilizado para mostrar visualmente el símbolo de advertencia. */
+.confirm-icon {
+    /* Define el tamaño del círculo y lo centra encima del título. */
+    width: 65px;
+    height: 65px;
+    margin: 0 auto 17px;
+    border-radius: 50%;
+    /* Usa rojo claro como fondo y rojo oscuro como color del icono. */
+    background: #fff1f2;
+    color: #e11d48;
+    /* Centra el icono dentro del círculo. */
+    display: grid;
+    place-items: center;
+    font-size: 28px;
+}
+
+/* Título principal de la ventana de confirmación. */
+.confirm-dialog h3 {
+    font-size: 19px;
+    font-weight: 700;
+    margin-bottom: 9px;
+}
+
+/* Texto explicativo que describe la acción pendiente. */
+.confirm-dialog p {
+    color: #64748b;
+    font-size: 13px;
+    line-height: 1.6;
+    margin-bottom: 25px;
+}
+
+/* Contenedor que coloca los botones uno al lado del otro. */
+.confirm-actions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+}
+
+/* Estilo base compartido por los botones de cancelar y confirmar. */
+.confirm-btn {
+    /* Los dos botones ocupan la misma cantidad de ancho disponible. */
+    flex: 1;
+    border: none;
+    border-radius: 9px;
+    padding: 11px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: .2s;
+}
+
+/* Apariencia gris suave del botón que cancela la acción. */
+.cancel-btn {
+    background: #f1f5f9;
+    color: #334155;
+}
+
+/* Aclara visualmente el fondo gris al pasar el cursor. */
+.cancel-btn:hover {
+    background: #e2e8f0;
+}
+
+/* Botón rojo usado para confirmar acciones destructivas o de bloqueo. */
+.danger-btn {
+    background: #e11d48;
+    color: white;
+}
+
+/* Oscurece el rojo al pasar el cursor sobre el botón peligroso. */
+.danger-btn:hover {
+    background: #be123c;
+}
+
+/* Muestra un contorno visible alrededor del botón cuando se alcanza por teclado. */
+.confirm-btn:focus-visible {
+    outline: 3px solid #93c5fd;
+    outline-offset: 3px;
+}
