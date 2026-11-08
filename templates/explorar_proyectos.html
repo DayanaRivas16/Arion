@@ -2,10 +2,14 @@
 
 {% block title %}Explorar Proyectos - ARION{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/explorar_proyecto.css') }}">
+{% endblock %}
+
 {% block content %}
 <div class="min-h-screen bg-light font-inter">
-
-    <section class="py-5 border-b bg-white" style="background: linear-gradient(135deg, rgba(13, 110, 253, 0.05), rgba(13, 110, 253, 0.1));">
+    <!-- Encabezado y mascota de la página de exploración. -->
+    <section class="explore-hero py-5 border-b bg-white">
         <div class="container max-w-7xl">
             <div class="row align-items-center justify-content-between g-4">
                 <div class="col-12 col-md-8 text-center text-md-start">
@@ -13,38 +17,28 @@
                     <p class="text-muted mt-2 lead">Descubre los mejores proyectos de nuestra comunidad</p>
                 </div>
                 <div class="col-12 col-md-4 text-center text-md-end">
-                    <img
-                        src="https://media.base44.com/images/public/6a0b20e9963ca6f1bc80b187/00ac705a2_leo_secundario_sinBG.png"
-                        alt="Lemi"
-                        class="img-fluid object-contain"
-                        style="max-height: 120px;"
-                    />
+                    <img src="{{ url_for('static', filename='img/leo_secundario_sinBG.png') }}"
+                         alt="Lemi" class="explore-mascot img-fluid object-contain">
                 </div>
             </div>
         </div>
     </section>
 
     <div class="container max-w-7xl py-5">
-
+        <!-- Controles: permiten buscar, ordenar, filtrar y cambiar el formato de visualización. -->
         <div class="row g-3 mb-4 align-items-center">
             <div class="col-12 col-lg-6">
                 <div class="position-relative">
-                    <span class="position-absolute top-50 start-0 translate-middle-y ps-3 text-muted" style="pointer-events: none;">
+                    <span class="explore-search-icon position-absolute top-50 start-0 translate-middle-y ps-3 text-muted">
                         <i class="bi bi-search"></i>
                     </span>
-                    <input
-                        id="search-input"
-                        type="text"
-                        class="form-control rounded-4 shadow-sm border-light"
-                        placeholder="Buscar proyectos o autores..."
-                        aria-label="Buscar proyectos o autores"
-                        style="height: 46px; padding-left: 42px;"
-                    >
+                    <input id="search-input" type="text"
+                           class="explore-control form-control rounded-4 shadow-sm border-light"
+                           placeholder="Buscar proyectos o autores..." aria-label="Buscar proyectos o autores">
                 </div>
             </div>
-
             <div class="col-12 col-sm-8 col-lg-2">
-                <select id="sort-select" class="form-select rounded-4 shadow-sm border-light" style="height: 46px;" aria-label="Ordenar proyectos">
+                <select id="sort-select" class="explore-control form-select rounded-4 shadow-sm border-light" aria-label="Ordenar proyectos">
                     <option value="recientes">Más recientes</option>
                     {% if session.get('user_id') %}
                     <option value="vistas">Más vistos</option>
@@ -53,17 +47,14 @@
                     {% endif %}
                 </select>
             </div>
-
-            
             <div class="col-12 col-sm-8 col-lg-2">
-                <select id="author-select" class="form-select rounded-4 shadow-sm border-light" style="height: 46px;" aria-label="Filtrar por autor">
+                <select id="author-select" class="explore-control form-select rounded-4 shadow-sm border-light" aria-label="Filtrar por autor">
                     <option value="">Todos los autores</option>
                     {% for autor in autores %}
                     <option value="{{ autor.nombre }}">{{ autor.nombre }}</option>
                     {% endfor %}
                 </select>
             </div>
-
             <div class="col-12 col-sm-4 col-lg-2 d-flex justify-content-sm-end">
                 <div class="btn-group bg-white p-1 rounded-4 border shadow-sm" role="group" aria-label="Tipo de vista">
                     <button type="button" id="btn-grid" class="btn btn-sm rounded-3 active-view px-3" aria-label="Vista de cuadrícula"><i class="bi bi-grid-3x3-gap-fill"></i></button>
@@ -84,246 +75,32 @@
             <button class="btn btn-light text-muted border-0 rounded-pill px-4 btn-cat" data-category="Ciencia">Ciencia</button>
         </div>
 
+        <!-- Resultados: este contenedor recibe las tarjetas generadas por el JavaScript externo. -->
         <p class="text-muted small mb-4" id="results-count" aria-live="polite"></p>
+        <div id="projects-wrapper" class="row g-4 row-cols-1 row-cols-sm-2 row-cols-lg-3"
+             data-authenticated="{{ 'true' if session.get('user_id') else 'false' }}"></div>
 
-        <div id="projects-wrapper" class="row g-4 row-cols-1 row-cols-sm-2 row-cols-lg-3"></div>
-
-        <!-- Estado vacío -->
         <div id="empty-state" class="text-center py-5 d-none">
-            <div class="bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 64px; height: 64px;">
+            <div class="empty-icon bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3">
                 <i class="bi bi-folder2-open fs-2"></i>
             </div>
             <h2 class="h5 fw-bold text-dark" id="empty-title"></h2>
             <p class="text-muted small mb-4" id="empty-text"></p>
-            <a href="{{ url_for('subir') if session.get('user_id') else url_for('login') }}" id="empty-cta" class="btn btn-primary rounded-pill px-4 fw-medium d-none">
+            <a href="{{ url_for('subir') if session.get('user_id') else url_for('login') }}"
+               id="empty-cta" class="btn btn-primary rounded-pill px-4 fw-medium d-none">
                 <i class="bi bi-upload me-2"></i>{{ 'Subir un proyecto' if session.get('user_id') else 'Accede para publicar' }}
             </a>
         </div>
 
         <div class="d-flex justify-content-center mt-5 d-none" id="more-wrapper">
-            <button id="btn-more" class="btn btn-outline-dark rounded-pill px-5 fw-medium shadow-sm" style="height: 46px;">Cargar más proyectos</button>
+            <button id="btn-more" class="explore-load-more btn btn-outline-dark rounded-pill px-5 fw-medium shadow-sm">Cargar más proyectos</button>
         </div>
     </div>
 </div>
 
-<script>
-    // Proyectos publicados, leídos de la base de datos
-    const projects = {{ proyectos|tojson }};
-    const authenticated = {{ 'true' if session.get('user_id') else 'false' }};
+<script id="projects-data" type="application/json">{{ proyectos|tojson }}</script>
+{% endblock %}
 
-    const PAGE_SIZE = 9;
-    let activeCategory = "Todos";
-    let viewMode = "grid";
-    let searchQuery = "";
-    let selectedAuthor = "";
-    let sortBy = "recientes";
-    let visibleCount = PAGE_SIZE;
-
-    const wrapper = document.getElementById('projects-wrapper');
-    const resultsCount = document.getElementById('results-count');
-    const emptyState = document.getElementById('empty-state');
-    const moreWrapper = document.getElementById('more-wrapper');
-
-    // Los datos los escriben los usuarios: siempre se escapan antes de ir al HTML
-    function esc(value) {
-        return String(value).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-    }
-
-    const sorters = {
-        recientes: (a, b) => b.date - a.date,
-        vistas: (a, b) => b.views - a.views,
-        valorados: (a, b) => (b.rating ?? -1) - (a.rating ?? -1),
-        gustados: (a, b) => b.likes - a.likes
-    };
-
-    function getFiltered() {
-    const q = searchQuery.trim().toLowerCase();
-    return projects
-        .filter(p => (activeCategory === "Todos" || p.category === activeCategory)
-            && (p.title.toLowerCase().includes(q) || p.author.toLowerCase().includes(q))
-            && (selectedAuthor === "" || p.author === selectedAuthor))
-        .sort(sorters[sortBy]);
-}
-
-    function resetAndRender() { visibleCount = PAGE_SIZE; renderProjects(); }
-
-    document.getElementById('search-input').addEventListener('input', e => {
-        searchQuery = e.target.value;
-        resetAndRender();
-    });
-
-    // <--- 3. Agregas este escuchador de eventos para el menú desplegable del autor
-    document.getElementById('author-select').addEventListener('change', e => {
-        selectedAuthor = e.target.value;
-        resetAndRender();
-    });
-
-    document.getElementById('sort-select').addEventListener('change', e => {
-        sortBy = e.target.value;
-        resetAndRender();
-    });
-
-    function imageHtml(p) {
-        return p.image
-            ? `<img src="${esc(p.image)}" class="w-100 h-100 object-cover card-img-anim" alt="Portada de ${esc(p.title)}">`
-            : `<div class="w-100 h-100 bg-light d-flex align-items-center justify-content-center text-muted"><i class="bi bi-image fs-1"></i></div>`;
-    }
-
-    function metaHtml(p) {
-        if (!authenticated) return '';
-        const rating = p.rating === null
-            ? `<span class="badge bg-primary-subtle text-primary rounded-pill">Nuevo</span>`
-            : `<span><i class="bi bi-star-fill text-warning me-1"></i>${p.rating.toFixed(1)}</span>`;
-        return `
-            <div class="d-flex align-items-center gap-2 text-muted small" style="font-size: 11px;">
-                ${rating}
-                <span><i class="bi bi-eye me-1"></i>${p.views}</span>
-                <span><i class="bi bi-heart me-1"></i>${p.likes}</span>
-            </div>`;
-    }
-
-    function authorHtml(p, size) {
-        return `
-            <div class="d-flex align-items-center gap-2 min-w-0">
-                <div class="rounded-circle bg-primary text-white fw-bold d-flex align-items-center justify-content-center flex-shrink-0" style="width: ${size}px; height: ${size}px; font-size: 10px;">${esc(p.avatar)}</div>
-                <span class="text-muted small text-truncate">${esc(p.author)}</span>
-            </div>`;
-    }
-
-    function titleHtml(p) {
-        return `<a href="/proyecto/${p.id}" class="stretched-link text-decoration-none text-reset">${esc(p.title)}</a>`;
-    }
-
-    function descriptionHtml(p) {
-        const description = p.description || 'Sin descripción disponible.';
-        return `<p class="project-description text-muted small mt-3 mb-0">${esc(description)}</p>
-            ${authenticated ? '' : '<p class="small text-primary mt-2 mb-0">Inicia sesión para ver más información.</p>'}`;
-    }
-
-    function cardGrid(p) {
-        return `
-            <div class="col">
-                <div class="card h-100 border-0 rounded-4 shadow-sm overflow-hidden custom-project-card">
-                    <div class="position-relative overflow-hidden" style="height: 180px;">
-                        ${imageHtml(p)}
-                        ${p.featured ? '<span class="position-absolute top-0 start-0 m-3 badge bg-warning text-dark rounded-pill fw-bold">⭐ Destacado</span>' : ''}
-                    </div>
-                    <div class="card-body p-4 flex-grow-1 d-flex flex-column justify-content-between">
-                        <div>
-                            <h5 class="card-title fw-bold text-dark mb-1 card-title-hover">${titleHtml(p)}</h5>
-                            <span class="badge bg-secondary-subtle text-secondary rounded-2 px-2 py-1 text-xs">${esc(p.category)}</span>
-                            ${descriptionHtml(p)}
-                        </div>
-                        <div class="d-flex align-items-center justify-content-between gap-2 mt-4 pt-3 border-t">
-                            ${authorHtml(p, 26)}
-                            ${metaHtml(p)}
-                        </div>
-                    </div>
-                </div>
-            </div>`;
-    }
-
-    function cardList(p) {
-        return `
-            <div class="card border-0 rounded-4 shadow-sm overflow-hidden custom-project-card w-100">
-                <div class="d-flex flex-column flex-sm-row">
-                    <div class="position-relative overflow-hidden flex-shrink-0 list-thumb">
-                        ${imageHtml(p)}
-                        ${p.featured ? '<span class="position-absolute top-0 start-0 m-2 badge bg-warning text-dark rounded-pill fw-bold" style="font-size:10px;">⭐</span>' : ''}
-                    </div>
-                    <div class="p-4 flex-grow-1 d-flex flex-column justify-content-between min-w-0">
-                        <div>
-                            <h5 class="card-title fw-bold text-dark mb-1 card-title-hover">${titleHtml(p)}</h5>
-                            <span class="badge bg-secondary-subtle text-secondary rounded-2 px-2 py-1 text-xs">${esc(p.category)}</span>
-                            ${descriptionHtml(p)}
-                        </div>
-                        <div class="d-flex align-items-center justify-content-between gap-2 mt-3 pt-2 border-t">
-                            ${authorHtml(p, 24)}
-                            ${metaHtml(p)}
-                        </div>
-                    </div>
-                </div>
-            </div>`;
-    }
-
-    function renderProjects() {
-        const filtered = getFiltered();
-        const shown = filtered.slice(0, visibleCount);
-
-        resultsCount.textContent = `${filtered.length} ${filtered.length === 1 ? 'proyecto encontrado' : 'proyectos encontrados'}`;
-        wrapper.className = viewMode === "grid" ? "row g-4 row-cols-1 row-cols-sm-2 row-cols-lg-3" : "d-flex flex-column gap-3";
-        wrapper.innerHTML = shown.map(viewMode === "grid" ? cardGrid : cardList).join('');
-
-        // Estado vacío
-        const empty = filtered.length === 0;
-        emptyState.classList.toggle('d-none', !empty);
-        if (empty) {
-            const sinProyectos = projects.length === 0;
-            document.getElementById('empty-title').textContent = sinProyectos ? 'Aún no hay proyectos publicados' : 'No encontramos proyectos';
-            document.getElementById('empty-text').textContent = sinProyectos
-                ? 'Sé la primera persona en compartir uno.'
-                : 'Prueba con otra búsqueda o cambia la categoría.';
-            document.getElementById('empty-cta').classList.toggle('d-none', !sinProyectos);
-        }
-
-        moreWrapper.classList.toggle('d-none', filtered.length <= visibleCount);
-    }
-
-    function resetAndRender() { visibleCount = PAGE_SIZE; renderProjects(); }
-
-    document.getElementById('search-input').addEventListener('input', e => {
-        searchQuery = e.target.value;
-        resetAndRender();
-    });
-
-    document.getElementById('author-select').addEventListener('change', e => {
-        selectedAuthor = e.target.value;
-        resetAndRender();
-    });
-
-    document.getElementById('sort-select').addEventListener('change', e => {
-        sortBy = e.target.value;
-        resetAndRender();
-    });
-
-    document.querySelectorAll('.btn-cat').forEach(btn => {
-        btn.addEventListener('click', e => {
-            document.querySelectorAll('.btn-cat').forEach(b => {
-                b.className = "btn btn-light text-muted border-0 rounded-pill px-4 btn-cat";
-            });
-            e.currentTarget.className = "btn btn-primary rounded-pill px-4 btn-cat active";
-            activeCategory = e.currentTarget.getAttribute('data-category');
-            resetAndRender();
-        });
-    });
-
-    document.getElementById('btn-grid').addEventListener('click', () => {
-        viewMode = "grid";
-        document.getElementById('btn-grid').className = "btn btn-sm rounded-3 active-view px-3";
-        document.getElementById('btn-list').className = "btn btn-sm text-muted rounded-3 px-3";
-        renderProjects();
-    });
-
-    document.getElementById('btn-list').addEventListener('click', () => {
-        viewMode = "list";
-        document.getElementById('btn-list').className = "btn btn-sm rounded-3 active-view px-3";
-        document.getElementById('btn-grid').className = "btn btn-sm text-muted rounded-3 px-3";
-        renderProjects();
-    });
-
-    document.getElementById('btn-more').addEventListener('click', () => {
-        visibleCount += PAGE_SIZE;
-        renderProjects();
-    });
-
-    renderProjects();
-</script>
-
-<style>
-    .min-w-0 { min-width: 0; }
-    .list-thumb { width: 200px; height: 140px; }
-    .project-description { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-    @media (max-width: 575.98px) { .list-thumb { width: 100%; } }
-</style>
-
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/explorar_proyecto.js') }}"></script>
 {% endblock %}

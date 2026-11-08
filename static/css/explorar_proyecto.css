@@ -1,0 +1,24 @@
+.min-w-0 { min-width: 0; }
+.list-thumb { width: 200px; height: 140px; }
+.project-description {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.project-grid-image { height: 180px; }
+.project-meta { font-size: 11px; }
+.featured-small { font-size: 10px; }
+.explore-hero {
+    background: linear-gradient(135deg, rgba(13, 110, 253, 0.05), rgba(13, 110, 253, 0.1));
+}
+.explore-mascot { max-height: 120px; }
+.explore-search-icon { pointer-events: none; }
+.explore-control { height: 46px; }
+.explore-control[type="text"] { padding-left: 42px; }
+.empty-icon { width: 64px; height: 64px; }
+.explore-load-more { height: 46px; }
+
+@media (max-width: 575.98px) {
+    .list-thumb { width: 100%; }
+}

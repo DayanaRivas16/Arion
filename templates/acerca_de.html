@@ -5,10 +5,10 @@
 {% block content %}
 <div class="min-h-screen bg-background font-inter">
   
-  {# Sección Principal (AcercaDeSection equivalente) #}
+  {# Contenido principal incluido desde una plantilla reutilizable, si existe. #}
   {% include 'components/acerca_de_section.html' ignore missing %}
 
-  <!-- Docente encargado -->
+  <!-- Información institucional del docente responsable de los proyectos. -->
   <section class="relative overflow-hidden py-16 sm:py-20 bg-white">
     <!-- Decoraciones de fondo -->
     <div class="absolute top-0 left-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl pointer-events-none"></div>

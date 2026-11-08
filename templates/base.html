@@ -15,6 +15,7 @@
 </head>
 <body class="bg-light d-flex flex-column min-vh-screen">
 
+    <!-- Navegación principal: adapta el menú según si existe una sesión iniciada. -->
     <header class="navbar navbar-expand-md navbar-light bg-white border-b sticky-top shadow-sm py-2">
         <div class="container-xl">
             <a class="navbar-brand fw-black fs-3 text-dark tracking-tight" href="{{ url_for('home') }}">
@@ -72,7 +73,7 @@
         </div>
     </header>
 
-    <!-- Contenedor de alertas -->
+    <!-- Mensajes temporales: muestra avisos enviados por Flask y los oculta automáticamente. -->
     <div class="position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 1080; width: 100%; max-width: 450px;" id="flash-container">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -105,6 +106,7 @@
     
     {% block extra_js %}{% endblock %}
 </body>
+<!-- Pie de página: ofrece navegación secundaria y enlaces institucionales. -->
 <footer class="bg-body-secondary border-top mt-auto">
         <div class="container-xl py-5">
             <div class="row g-4 text-start">

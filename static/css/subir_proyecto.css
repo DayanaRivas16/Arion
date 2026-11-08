@@ -1,0 +1,40 @@
+.max-w-4xl { max-width: 896px; }
+    .min-w-0 { min-width: 0; }
+    .focus-none:focus { box-shadow: none !important; }
+
+    .step-circle { width: 36px; height: 36px; font-size: .9rem; transition: all .2s; }
+    .step-line { width: 32px; height: 2px; margin: 17px 4px 0; background: #dee2e6; }
+    @media (min-width: 576px) { .step-line { width: 96px; margin-left: 8px; margin-right: 8px; } }
+    .shadow-primary { box-shadow: 0 8px 16px -4px rgba(13, 110, 253, .4); }
+
+    .cat-idle { background: #fff; border: 1px solid #dee2e6; color: #6c757d; }
+    .cat-idle:hover { border-color: #0d6efd; color: #0d6efd; }
+
+    .icon-left { position: absolute; top: 50%; left: 14px; transform: translateY(-50%); color: #6c757d; pointer-events: none; line-height: 0; z-index: 3; }
+
+    .dropzone { border: 2px dashed #dee2e6; cursor: pointer; transition: all .2s; }
+    .dropzone:hover, .dropzone:focus-visible { border-color: rgba(13, 110, 253, .5); background: #f8f9fa; outline: none; }
+    .dropzone.drag-over { border-color: #0d6efd; background: rgba(13, 110, 253, .05); }
+
+    .member-results { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; right: 0; background: #fff; border: 1px solid #dee2e6; max-height: 280px; overflow-y: auto; }
+    .member-option:hover { background: #f1f6ff !important; }
+    .avatar-xs { width: 28px; height: 28px; font-size: .65rem; flex-shrink: 0; }
+    .avatar-bg { background: linear-gradient(135deg, #60a5fa, #2563eb); }
+
+    .estado-card { background: #fff; border: 1px solid #dee2e6; color: #6c757d; transition: all .2s; }
+    .estado-card:hover { border-color: #0d6efd; }
+    .estado-card.selected { border-color: #0d6efd; background: rgba(13, 110, 253, .06); color: #0d6efd; box-shadow: 0 0 0 3px rgba(13, 110, 253, .12); }
+    .estado-card.selected .text-muted { color: #6c757d !important; }
+
+    .floating-anim { animation: floatY 4s ease-in-out infinite; }
+    @keyframes floatY { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+
+    .pane-in { animation: paneIn .35s ease-out; }
+    @keyframes paneIn { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: translateX(0); } }
+
+    @media (prefers-reduced-motion: reduce) { .floating-anim, .pane-in { animation: none; } }
+
+    .upload-hero { background: linear-gradient(135deg, #0d6efd 0%, #2563eb 50%, #1e40af 100%); }
+    .upload-mascot { width: 96px; height: 96px; }
+    .upload-title { font-size: calc(1.4rem + 1vw); }
+    .upload-subtitle { color: rgba(255,255,255,.8); }

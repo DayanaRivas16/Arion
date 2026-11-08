@@ -12,6 +12,7 @@
 <div class="font-inter pb-5">
 
     <!-- Migas de pan -->
+    <!-- Navegación de retorno hacia la lista de proyectos. -->
     <nav class="d-flex align-items-center gap-2 small mb-4" aria-label="breadcrumb">
         <a href="{{ url_for('explorar') }}" class="text-muted text-decoration-none d-inline-flex align-items-center gap-1 hover-underline">
             <i class="bi bi-arrow-left"></i> Explorar proyectos
@@ -28,7 +29,7 @@
 
     <div class="row g-4">
 
-        <!-- ================= COLUMNA PRINCIPAL ================= -->
+        <!-- Contenido principal: portada, datos, descripción y archivos del proyecto. -->
         <div class="col-12 col-lg-8">
 
             <div class="position-relative rounded-5 overflow-hidden shadow portada">
@@ -107,13 +108,13 @@
                 </div>
             </div>
 
-            <!-- Sobre el proyecto -->
+            <!-- Descripción completa proporcionada por el autor. -->
             <section class="bg-white border rounded-5 p-4 p-md-5 mb-4">
                 <h2 class="h4 fw-bold text-dark mb-3">Sobre el proyecto</h2>
                 <p class="text-muted lh-lg m-0 descripcion">{{ proyecto.descripcion }}</p>
             </section>
 
-            <!-- Documentos -->
+            <!-- Archivos adjuntos disponibles para descarga. -->
             {% if documentos %}
             <section class="bg-white border rounded-5 p-4 p-md-5 mb-4">
                 <h2 class="h4 fw-bold text-dark mb-3">Documentos</h2>
@@ -133,7 +134,7 @@
             </section>
             {% endif %}
 
-            <!-- Integrantes -->
+            <!-- Lista de estudiantes que participan en el proyecto. -->
             <section class="bg-white border rounded-5 p-4 p-md-5 mb-4">
                 <h2 class="h4 fw-bold text-dark mb-3">Integrantes del equipo</h2>
                 <div class="d-flex flex-wrap gap-3">
@@ -180,7 +181,7 @@
 
         </div>
 
-        <!-- ================= COLUMNA LATERAL ================= -->
+        <!-- Acciones laterales: permite dar me gusta, compartir, abrir el enlace y conocer al autor. -->
         <div class="col-12 col-lg-4">
             <div class="sticky-lg-top" style="top: 88px;">
 

@@ -8,7 +8,7 @@
 *{box-sizing:border-box}
 /* Define la apariencia general de toda la página del administrador. */
 body.adm{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 'Plus Jakarta Sans',system-ui,sans-serif}
-a{color:inherit;text-decoration:none}s
+a{color:inherit;text-decoration:none}
 /* Elimina los márgenes predeterminados de los títulos y párrafos. */
 h1,h2,h3,p{margin:0}
 /* Centra el contenido y limita su ancho máximo. */
