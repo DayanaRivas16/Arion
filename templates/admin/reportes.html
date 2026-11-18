@@ -3,10 +3,91 @@
 {% block title %}Reportes{% endblock %}
 
 {% block content %}
-<!-- Encabezado de la sección donde se mostrará el resumen de reportes. -->
 <div class="page-head">
-    <h1>Reportes</h1>
-    <p class="sub">Revisa la información y actividad administrativa del sistema.</p>
+    <div class="report-page-heading">
+        <div>
+            <h1>Reportes y Estadísticas</h1>
+            <p class="sub">Consultas recibidas por el equipo de soporte de ARION.</p>
+        </div>
+        <span class="chip chip-blue">Centro de soporte</span>
+    </div>
 </div>
 
+<section class="report-stats" aria-label="Estadísticas de consultas">
+    <article class="card report-stat">
+        <div class="report-stat-icon report-stat-icon-blue"><i class="bi bi-inbox"></i></div>
+        <div>
+            <p class="report-stat-label">Consultas recibidas</p>
+            <p class="report-stat-value">{{ total_consultas }}</p>
+        </div>
+    </article>
+    <article class="card report-stat">
+        <div class="report-stat-icon report-stat-icon-amber"><i class="bi bi-hourglass-split"></i></div>
+        <div>
+            <p class="report-stat-label">Pendientes</p>
+            <p class="report-stat-value">{{ consultas_pendientes }}</p>
+        </div>
+    </article>
+    <article class="card report-stat">
+        <div class="report-stat-icon report-stat-icon-green"><i class="bi bi-check2-circle"></i></div>
+        <div>
+            <p class="report-stat-label">En otros estados</p>
+            <p class="report-stat-value">{{ otras_consultas }}</p>
+        </div>
+    </article>
+</section>
+
+<section class="card report-list">
+    <div class="report-list-heading">
+        <div>
+            <h2>Consultas de soporte</h2>
+            <p class="sub">Las consultas más recientes aparecen primero dentro de cada estado.</p>
+        </div>
+        <span class="chip">{{ total_consultas }} en total</span>
+    </div>
+
+    {% if consultas %}
+    <div class="table-wrap">
+        <table class="tbl report-table">
+            <thead>
+                <tr>
+                    <th>Estudiante</th>
+                    <th>Correo</th>
+                    <th>Mensaje</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for consulta in consultas %}
+                <tr>
+                    <td>
+                        <div class="person">
+                            <span class="ava ava-blue">{{ consulta.nombre|iniciales }}</span>
+                            <span class="strong">{{ consulta.nombre }}</span>
+                        </div>
+                    </td>
+                    <td class="report-email">{{ consulta.correo }}</td>
+                    <td class="report-message" title="{{ consulta.asunto }}: {{ consulta.descripcion }}">
+                        <strong>{{ consulta.asunto }}</strong>
+                        <p>{{ consulta.descripcion|truncate(180, true) }}</p>
+                    </td>
+                    <td>
+                        {% if consulta.estado|lower == 'pendiente' %}
+                        <span class="chip chip-amber">{{ consulta.estado }}</span>
+                        {% else %}
+                        <span class="chip chip-green">{{ consulta.estado }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty report-empty">
+        <i class="bi bi-chat-square-text"></i>
+        <p>Aún no se han recibido consultas de soporte.</p>
+    </div>
+    {% endif %}
+</section>
 {% endblock %}

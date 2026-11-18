@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Recursos y Soporte - ARION{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/soporte.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center my-4">
+    <div class="col-lg-9">
+
+        <!-- Encabezado e información útil -->
+        <div class="mb-5">
+            <h1 class="fw-bold text-dark mb-2">Centro de Ayuda</h1>
+            <p class="text-muted">Guías rápidas para aprovechar la plataforma y canal directo de soporte técnico.</p>
+
+            <div class="row g-3 mt-3">
+                <div class="col-md-4">
+                    <div class="card h-100 border-0 shadow-sm rounded-4 p-3 bg-white">
+                        <div class="text-primary fs-3 mb-2"><i class="bi bi-cloud-arrow-up"></i></div>
+                        <h6 class="fw-bold text-dark">Subir proyectos</h6>
+                        <p class="text-muted small mb-0">Prepara una descripción clara, capturas de pantalla y el enlace a tu repositorio antes de publicar.</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100 border-0 shadow-sm rounded-4 p-3 bg-white">
+                        <div class="text-primary fs-3 mb-2"><i class="bi bi-shield-check"></i></div>
+                        <h6 class="fw-bold text-dark">Acceso institucional</h6>
+                        <p class="text-muted small mb-0">Ingresa siempre con tu correo institucional autorizado para desbloquear todas las funciones.</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100 border-0 shadow-sm rounded-4 p-3 bg-white">
+                        <div class="text-primary fs-3 mb-2"><i class="bi bi-question-circle"></i></div>
+                        <h6 class="fw-bold text-dark">Preguntas frecuentes</h6>
+                        <p class="text-muted small mb-0">Puedes editar la información de tus proyectos publicados desde la sección "Mi perfil" en cualquier momento.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Formulario de Soporte (HU-18) -->
+        <div id="soporte" class="card border-0 shadow-sm rounded-4 p-4 p-md-5 bg-white">
+            <h3 class="fw-bold text-dark mb-2">Enviar una consulta de soporte</h3>
+            <p class="text-muted small mb-4">¿Reportas un fallo o necesitas ayuda con tu cuenta? Escríbenos y revisaremos tu caso.</p>
+
+            {% if session.get('user_id') %}
+            <form action="{{ url_for('soporte') }}" method="POST">
+                <div class="mb-3">
+                    <label for="asunto" class="form-label fw-medium small">Asunto</label>
+                    <input type="text" class="form-control rounded-3" id="asunto" name="asunto" maxlength="150" required placeholder="Ej. Error al cargar imagen de mi proyecto">
+                </div>
+
+                <div class="mb-4">
+                    <label for="descripcion" class="form-label fw-medium small">Descripción detallada</label>
+                    <textarea class="form-control rounded-3" id="descripcion" name="descripcion" rows="4" required placeholder="Cuéntanos qué estabas haciendo y qué ocurrió..."></textarea>
+                </div>
+
+                <button type="submit" class="btn btn-primary rounded-pill px-4 fw-medium">
+                    <i class="bi bi-send me-1"></i> Enviar consulta
+                </button>
+            </form>
+            {% else %}
+            <p class="text-muted mb-3">Inicia sesión para enviar una consulta vinculada a tu cuenta.</p>
+            <a href="{{ url_for('login') }}" class="btn btn-primary rounded-pill px-4 fw-medium">Acceder</a>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,70 @@
+/* ==========================================================
+   ESTILOS PARA LA PÁGINA DE SOPORTE Y RECURSOS (HU-18)
+   ========================================================== */
+
+/* Tarjetas de información rápida (Subir proyectos, Acceso, FAQ) */
+.card.h-100 {
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+    border: 1px solid rgba(0, 0, 0, 0.05) !important;
+}
+
+.card.h-100:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(13, 110, 253, 0.08) !important;
+    border-color: rgba(13, 110, 253, 0.25) !important;
+}
+
+/* Contenedor de los íconos de Bootstrap en las tarjetas */
+.card.h-100 .text-primary.fs-3 {
+    width: 48px;
+    height: 48px;
+    background-color: rgba(13, 110, 253, 0.1);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+.card.h-100:hover .text-primary.fs-3 {
+    background-color: #0d6efd;
+    color: #ffffff !important;
+}
+
+/* Tarjeta principal del formulario de soporte */
+#soporte {
+    border: 1px solid rgba(0, 0, 0, 0.06) !important;
+    scroll-margin-top: 90px; /* Evita que el menú superior tape el título al bajar */
+}
+
+/* Campos de texto del formulario (Asunto y Descripción) */
+#soporte .form-control {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    padding: 0.75rem 1rem;
+    font-size: 0.95rem;
+    transition: all 0.2s ease-in-out;
+}
+
+#soporte .form-control:focus {
+    background-color: #ffffff;
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
+}
+
+#soporte .form-label {
+    color: #343a40;
+    margin-bottom: 0.4rem;
+}
+
+/* Botón de envío */
+#soporte .btn-primary {
+    padding-top: 0.6rem;
+    padding-bottom: 0.6rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+#soporte .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(13, 110, 253, 0.25);
+}

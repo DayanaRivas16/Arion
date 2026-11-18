@@ -13,6 +13,7 @@ import uuid
 load_dotenv()
 
 app = Flask(__name__)
+
 app.secret_key = os.getenv('SECRET_KEY')
 
 # =====================================================================
@@ -141,7 +142,29 @@ def admin_proyectos():
 @app.route('/admin/reportes')
 @admin_required
 def admin_reportes():
-    return render_template('admin/reportes.html')
+    consultas = consultar("""
+        SELECT u.nombre_completo AS nombre,
+               u.correo_usuario AS correo,
+               s.asunto,
+               s.descripcion,
+               s.estado
+        FROM soporte s
+        JOIN usuarios u ON u.id_usuario = s.usuario_id
+        ORDER BY CASE WHEN LOWER(s.estado) = 'pendiente' THEN 0 ELSE 1 END,
+                 s.fecha_creacion DESC;
+    """)
+    total_consultas = len(consultas)
+    consultas_pendientes = sum(
+        1 for consulta in consultas
+        if (consulta.get('estado') or '').strip().lower() == 'pendiente'
+    )
+    return render_template(
+        'admin/reportes.html',
+        consultas=consultas,
+        total_consultas=total_consultas,
+        consultas_pendientes=consultas_pendientes,
+        otras_consultas=total_consultas - consultas_pendientes,
+    )
 
 
 @app.route('/admin/configuracion')
@@ -628,6 +651,8 @@ def explorar():
     autores = [] 
     conn = None
     cursor = None
+    admin_emails = []
+    usuario = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -1401,6 +1426,109 @@ def eliminar_proyecto(id):
         cursor.close()
         conn.close()
     return redirect(url_for('perfil'))
+
+# ==========================================================
+# RUTA DE SOPORTE (HU-18)
+# ==========================================================
+@app.route('/soporte', methods=['GET', 'POST'])
+def soporte():
+    if request.method == 'GET':
+        return render_template('soporte.html')
+
+    if 'user_id' not in session:
+        flash('Inicia sesión para enviar una consulta de soporte.', 'warning')
+        return redirect(url_for('login'))
+
+    uid = session['user_id']
+
+    asunto = request.form.get('asunto', '').strip()
+    descripcion = request.form.get('descripcion', '').strip()
+
+    if not asunto or not descripcion:
+        flash('El asunto y la descripción son obligatorios.', 'danger')
+        return redirect(url_for('soporte'))
+
+    if len(asunto) > 150:
+        flash('El asunto no puede superar los 150 caracteres.', 'danger')
+        return redirect(url_for('soporte'))
+
+    conn = None
+    cursor = None
+    admin_emails = []
+    usuario = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        cursor.execute("""
+            INSERT INTO soporte (usuario_id, asunto, descripcion, estado)
+            VALUES (%s, %s, %s, 'pendiente');
+        """, (uid, asunto, descripcion))
+
+        cursor.execute("""
+            SELECT nombre_completo, correo_usuario
+            FROM usuarios
+            WHERE id_usuario = %s;
+        """, (uid,))
+        usuario = cursor.fetchone()
+        if not usuario:
+            raise RuntimeError('No se encontró la cuenta asociada a la consulta de soporte.')
+
+        cursor.execute("""
+            SELECT DISTINCT LOWER(BTRIM(correo_usuario)) AS correo
+            FROM usuarios
+            WHERE id_tipo = %s
+              AND activo = TRUE
+              AND correo_usuario IS NOT NULL
+              AND BTRIM(correo_usuario) <> '';
+        """, (ID_TIPO_ADMIN,))
+        admin_emails = [fila['correo'] for fila in cursor.fetchall()]
+
+        conn.commit()
+    except Exception:
+        if conn:
+            conn.rollback()
+        app.logger.exception('Error al guardar la consulta de soporte')
+        flash('No se pudo registrar tu consulta. Inténtalo de nuevo.', 'danger')
+        return redirect(url_for('soporte'))
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+    if not admin_emails:
+        app.logger.error('No hay correos de administradores activos para notificar la consulta de soporte.')
+        flash(
+            'Tu consulta quedó registrada, pero no se pudo notificar por correo a un administrador.',
+            'warning'
+        )
+        return redirect(url_for('soporte'))
+
+    try:
+        mail.send(Message(
+            subject='Nueva consulta de soporte - ARION',
+            recipients=admin_emails,
+            body=(
+                'Se recibió una nueva consulta de soporte.\n\n'
+                f'Estudiante: {usuario["nombre_completo"]}\n'
+                f'Correo: {usuario["correo_usuario"]}\n'
+                f'Asunto: {asunto}\n\n'
+                f'Mensaje:\n{descripcion}\n\n'
+                'Puedes revisar la consulta en el panel de administración, sección Reportes.'
+            )
+        ))
+    except Exception:
+        app.logger.exception('La consulta se guardó, pero falló el envío de la notificación por correo.')
+        flash(
+            'Tu consulta quedó registrada, pero no se pudo enviar la notificación por correo.',
+            'warning'
+        )
+    else:
+        flash('¡Tu consulta fue enviada y se notificó a los administradores!', 'success')
+
+    return redirect(url_for('soporte'))
+
 
 if __name__ == '__main__':
     app.run(debug=True)
