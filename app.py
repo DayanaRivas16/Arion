@@ -158,12 +158,90 @@ def admin_reportes():
         1 for consulta in consultas
         if (consulta.get('estado') or '').strip().lower() == 'pendiente'
     )
+
+    anios_disponibles = consultar("""
+        SELECT DISTINCT EXTRACT(YEAR FROM fecha_creacion)::int AS anio
+        FROM proyectos
+        WHERE LOWER(estado) = 'publicado'
+        ORDER BY anio DESC;
+    """)
+    anios_disponibles = [fila['anio'] for fila in anios_disponibles]
+    anio_solicitado = request.args.get('anio', type=int)
+    anio_actual = anio_solicitado if anio_solicitado in anios_disponibles else (
+        anios_disponibles[0] if anios_disponibles else datetime.now().year
+    )
+
+    proyectos_por_mes = consultar("""
+        SELECT EXTRACT(MONTH FROM fecha_creacion)::int AS mes, COUNT(*) AS total
+        FROM proyectos
+        WHERE LOWER(estado) = 'publicado'
+          AND EXTRACT(YEAR FROM fecha_creacion) = %s
+        GROUP BY mes
+        ORDER BY mes;
+    """, (anio_actual,))
+    totales_por_mes = {fila['mes']: fila['total'] for fila in proyectos_por_mes}
+    nombres_meses = (
+        'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+    )
+    max_proyectos_mes = max(totales_por_mes.values(), default=0)
+    meses = [
+        {
+            'nombre': nombre,
+            'total': totales_por_mes.get(numero, 0),
+            'porcentaje': (
+                totales_por_mes.get(numero, 0) * 100 / max_proyectos_mes
+                if max_proyectos_mes else 0
+            ),
+        }
+        for numero, nombre in enumerate(nombres_meses, start=1)
+    ]
+
+    categorias = consultar("""
+        SELECT COALESCE(c.nombre_categoria, 'Sin categoría') AS nombre,
+               COUNT(*) AS total
+        FROM proyectos p
+        LEFT JOIN categorias c ON c.id_categoria = p.id_categoria
+        WHERE LOWER(p.estado) = 'publicado'
+          AND EXTRACT(YEAR FROM p.fecha_creacion) = %s
+        GROUP BY nombre
+        ORDER BY total DESC, nombre;
+    """, (anio_actual,))
+    total_proyectos_anio = sum(categoria['total'] for categoria in categorias)
+    for categoria in categorias:
+        categoria['porcentaje'] = (
+            categoria['total'] * 100 / total_proyectos_anio
+            if total_proyectos_anio else 0
+        )
+
+    estudiantes = consultar("""
+        SELECT u.nombre_completo AS nombre,
+               u.grado,
+               COUNT(p.id_proyecto) AS proyectos,
+               AVG(p.calificacion)::float AS valoracion_promedio,
+               COALESCE(SUM(p.vistas_count), 0) AS vistas_totales
+        FROM usuarios u
+        JOIN proyectos p ON p.id_usuario = u.id_usuario
+        WHERE u.id_tipo = %s
+          AND LOWER(p.estado) = 'publicado'
+          AND EXTRACT(YEAR FROM p.fecha_creacion) = %s
+        GROUP BY u.id_usuario, u.nombre_completo, u.grado
+        ORDER BY vistas_totales DESC, proyectos DESC, u.nombre_completo
+        LIMIT 10;
+    """, (ID_TIPO_ESTUDIANTE, anio_actual))
+
     return render_template(
         'admin/reportes.html',
         consultas=consultas,
         total_consultas=total_consultas,
         consultas_pendientes=consultas_pendientes,
         otras_consultas=total_consultas - consultas_pendientes,
+        anios_disponibles=anios_disponibles or [anio_actual],
+        anio_actual=anio_actual,
+        meses=meses,
+        categorias=categorias,
+        total_proyectos_anio=total_proyectos_anio,
+        estudiantes=estudiantes,
     )
 
 

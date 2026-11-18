@@ -7,13 +7,16 @@
     <div class="report-page-heading">
         <div>
             <h1>Reportes y Estadísticas</h1>
-            <p class="sub">Consultas recibidas por el equipo de soporte de ARION.</p>
+            <p class="sub">Consultas de soporte y actividad de los proyectos publicados.</p>
         </div>
-        <span class="chip chip-blue">Centro de soporte</span>
+        <nav class="report-jump-links" aria-label="Secciones de reportes">
+            <a class="btn btn-soft" href="#consultas"><i class="bi bi-chat-square-text"></i> Consultas</a>
+            <a class="btn btn-primary" href="#estadisticas"><i class="bi bi-bar-chart-line"></i> Estadísticas</a>
+        </nav>
     </div>
 </div>
 
-<section class="report-stats" aria-label="Estadísticas de consultas">
+<section class="report-stats" aria-label="Resumen de consultas de soporte">
     <article class="card report-stat">
         <div class="report-stat-icon report-stat-icon-blue"><i class="bi bi-inbox"></i></div>
         <div>
@@ -37,7 +40,7 @@
     </article>
 </section>
 
-<section class="card report-list">
+<section class="card report-list" id="consultas">
     <div class="report-list-heading">
         <div>
             <h2>Consultas de soporte</h2>
@@ -89,5 +92,140 @@
         <p>Aún no se han recibido consultas de soporte.</p>
     </div>
     {% endif %}
+</section>
+
+<section class="report-analytics" id="estadisticas" aria-labelledby="analytics-title">
+    <div class="report-analytics-heading">
+        <div>
+            <h2 id="analytics-title">Estadísticas de proyectos</h2>
+            <p class="sub">Proyectos publicados, categorías y actividad de estudiantes.</p>
+        </div>
+        <form class="report-year-filter" method="get" action="{{ url_for('admin_reportes') }}">
+            <label for="report-year">Año</label>
+            <select id="report-year" name="anio" onchange="this.form.submit()">
+                {% for anio in anios_disponibles %}
+                <option value="{{ anio }}" {{ 'selected' if anio == anio_actual }}>{{ anio }}</option>
+                {% endfor %}
+            </select>
+            <button class="btn btn-soft btn-sm" type="submit">Ver</button>
+        </form>
+    </div>
+
+    <div class="report-analytics-grid">
+        <article class="card report-chart-card report-monthly">
+            <div class="report-chart-heading">
+                <div>
+                    <h3>Proyectos publicados por mes</h3>
+                    <p class="sub">Año {{ anio_actual }}, según fecha de creación</p>
+                </div>
+                <span class="chip chip-blue">{{ total_proyectos_anio }} en total</span>
+            </div>
+            {% if total_proyectos_anio %}
+            <div class="monthly-chart-wrap">
+                <div class="monthly-chart" role="img" aria-label="Proyectos publicados por mes durante {{ anio_actual }}">
+                    {% for mes in meses %}
+                    <div class="monthly-column" title="{{ mes.nombre }}: {{ mes.total }} proyectos">
+                        <span class="monthly-value">{{ mes.total }}</span>
+                        <div class="monthly-bar-track">
+                            <div class="monthly-bar" style="height: {{ mes.porcentaje }}%"></div>
+                        </div>
+                        <span class="monthly-label">{{ mes.nombre[:3] }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% else %}
+            <div class="empty report-empty">
+                <i class="bi bi-bar-chart"></i>
+                <p>No hay proyectos publicados en {{ anio_actual }}.</p>
+            </div>
+            {% endif %}
+        </article>
+
+        <article class="card report-chart-card">
+            <div class="report-chart-heading">
+                <div>
+                    <h3>Distribución por categoría</h3>
+                    <p class="sub">Porcentaje de proyectos publicados</p>
+                </div>
+            </div>
+            {% if categorias %}
+            <ul class="category-distribution">
+                {% for categoria in categorias %}
+                <li>
+                    <div class="category-label">
+                        <span>{{ categoria.nombre }}</span>
+                        <strong>{{ categoria.porcentaje|round|int }}%</strong>
+                    </div>
+                    <div class="category-track" role="progressbar"
+                         aria-label="{{ categoria.nombre }}"
+                         aria-valuenow="{{ categoria.porcentaje|round|int }}"
+                         aria-valuemin="0" aria-valuemax="100">
+                        <span style="width: {{ categoria.porcentaje }}%"></span>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div class="empty report-empty">
+                <i class="bi bi-pie-chart"></i>
+                <p>No hay categorías con proyectos publicados en {{ anio_actual }}.</p>
+            </div>
+            {% endif %}
+        </article>
+    </div>
+
+    <article class="card report-list report-students">
+        <div class="report-list-heading">
+            <div>
+                <h3>Estudiantes con más interacción y proyectos</h3>
+                <p class="sub">Ordenados por vistas totales de sus proyectos publicados en {{ anio_actual }}.</p>
+            </div>
+            <span class="chip">{{ estudiantes|length }} estudiantes</span>
+        </div>
+        {% if estudiantes %}
+        <div class="table-wrap">
+            <table class="tbl report-table report-student-table">
+                <thead>
+                    <tr>
+                        <th>Estudiante</th>
+                        <th>Grado</th>
+                        <th>Proyectos publicados</th>
+                        <th>Valoración promedio</th>
+                        <th class="c">Vistas totales</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for estudiante in estudiantes %}
+                    <tr>
+                        <td>
+                            <div class="person">
+                                <span class="ava ava-blue">{{ estudiante.nombre|iniciales }}</span>
+                                <span class="strong">{{ estudiante.nombre }}</span>
+                            </div>
+                        </td>
+                        <td>{{ estudiante.grado or 'N/A' }}</td>
+                        <td class="report-number">{{ estudiante.proyectos }}</td>
+                        <td class="report-rating">
+                            {% if estudiante.valoracion_promedio is not none %}
+                            <i class="bi bi-star-fill" aria-hidden="true"></i>
+                            {{ estudiante.valoracion_promedio|round(1) }}
+                            {% else %}
+                            <span class="t-muted">Sin valoraciones</span>
+                            {% endif %}
+                        </td>
+                        <td class="c">{{ estudiante.vistas_totales|int }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty report-empty">
+            <i class="bi bi-people"></i>
+            <p>No hay proyectos publicados por estudiantes en {{ anio_actual }}.</p>
+        </div>
+        {% endif %}
+    </article>
 </section>
 {% endblock %}
