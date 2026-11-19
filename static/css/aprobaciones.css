@@ -1,0 +1,58 @@
+/* Estilos para la vista de aprobación de proyectos - ARION */
+
+.card {
+    background-color: #ffffff !important;
+    border: 1px solid #e6edf7 !important;
+    border-radius: 1rem !important;
+    box-shadow: 0 6px 20px rgba(13, 110, 253, 0.05) !important;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(13, 110, 253, 0.09) !important;
+    border-color: rgba(13, 110, 253, 0.28) !important;
+}
+
+/* Badge amarillo de "Pendientes por revisar" -> azul celeste suave de ARION */
+.badge.text-bg-warning {
+    background-color: #e7f1ff !important;
+    color: #0b5ed7 !important;
+    border: 1px solid rgba(13, 110, 253, 0.2) !important;
+}
+
+/* Badges de categoría (tanto azul como verde) -> tono azul/celeste uniforme */
+.badge.bg-primary-subtle,
+.badge.bg-success-subtle {
+    background-color: #e7f1ff !important;
+    color: #0b5ed7 !important;
+    border: 1px solid rgba(13, 110, 253, 0.16) !important;
+}
+
+/* Botón Aprobar (verde) -> azul principal de ARION */
+.btn-success {
+    background-color: #0d6efd !important;
+    border-color: #0d6efd !important;
+    color: #ffffff !important;
+}
+
+.btn-success:hover,
+.btn-success:focus {
+    background-color: #0b5ed7 !important;
+    border-color: #0a58ca !important;
+    color: #ffffff !important;
+}
+
+/* Botón Rechazar (rojo) -> gris/azulado neutro suave */
+.btn-outline-danger {
+    background-color: #f8fafc !important;
+    border-color: #cbd5e1 !important;
+    color: #475569 !important;
+}
+
+.btn-outline-danger:hover,
+.btn-outline-danger:focus {
+    background-color: #e2e8f0 !important;
+    border-color: #94a3b8 !important;
+    color: #1e293b !important;
+}

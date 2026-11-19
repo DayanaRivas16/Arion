@@ -28,6 +28,17 @@
                         Acceder
                     </a>
                 {% else %}
+                    {% if session.get('id_tipo') == 2 %}
+                    <a href="{{ url_for('aprobaciones') }}" class="btn btn-light border rounded-circle d-inline-flex align-items-center justify-content-center position-relative p-0"
+                       style="width: 38px; height: 38px;" aria-label="Notificaciones de aprobaciones" title="Notificaciones">
+                        <i class="bi bi-bell fs-6 text-dark"></i>
+                        {% if pendientes_revision_count and pendientes_revision_count > 0 %}
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                            {{ pendientes_revision_count }}
+                        </span>
+                        {% endif %}
+                    </a>
+                    {% endif %}
                     <a href="{{ url_for('logout') }}" class="btn btn-outline-danger rounded-pill px-3 px-md-4 fw-medium btn-auth-header">
                         Cerrar sesión
                     </a>
@@ -53,6 +64,12 @@
                         <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'subir' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
                         href="{{ url_for('subir') }}">Subir proyecto</a>
                     </li>
+                    {% if session.get('id_tipo') == 2 %}
+                    <li class="nav-item">
+                        <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'aprobaciones' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
+                           href="{{ url_for('aprobaciones') }}">Revisiones</a>
+                    </li>
+                    {% endif %}
                     <li class="nav-item">
                         <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'perfil' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
                         href="{{ url_for('perfil') }}">Mi perfil</a>

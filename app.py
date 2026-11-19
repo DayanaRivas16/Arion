@@ -1388,6 +1388,70 @@ def perfil():
 def recursos():
     return render_template('recursos.html')
 
+# ======================================================
+# RUTA DE APROBACIONES (SOLO DOCENTES)
+# ======================================================
+
+def docente_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Por favor, inicia sesión para acceder a esta página.', 'warning')
+            return redirect(url_for('login'))
+        if session.get('id_tipo') != ID_TIPO_DOCENTE:
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+@app.route('/aprobaciones')
+@docente_required
+def aprobaciones():
+    conn = None
+    cur = None
+    proyectos_pendientes = []
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        # Ajusta aquí los nombres de columnas si en tu tabla proyectos se llaman diferente
+        cur.execute("""
+            SELECT
+                p.id_proyecto,
+                p.titulo,
+                p.descripcion,
+                p.grado,
+                p.imagen_url,
+                p.fecha_creacion,
+                c.nombre_categoria AS categoria,
+                u.nombre_completo AS autor
+            FROM proyectos p
+            LEFT JOIN usuarios u ON p.id_usuario = u.id_usuario
+            LEFT JOIN categorias c ON p.id_categoria = c.id_categoria
+            WHERE LOWER(COALESCE(p.estado, '')) IN ('borrador', 'pendiente')
+            ORDER BY p.id_proyecto DESC
+        """)
+
+        columnas = [desc[0] for desc in cur.description]
+        proyectos_pendientes = [dict(zip(columnas, fila)) for fila in cur.fetchall()]
+
+    except Exception as e:
+        print(f"Error al cargar proyectos en /aprobaciones: {e}")
+        flash('No se pudieron cargar los proyectos pendientes desde la base de datos.', 'danger')
+
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+    return render_template(
+        'aprobaciones.html',
+        proyectos=proyectos_pendientes,
+        pendientes_count=len(proyectos_pendientes)
+    )
+
 # =====================================================================
 # MANEJO DE ERRORES 
 # =====================================================================

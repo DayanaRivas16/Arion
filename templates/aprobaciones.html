@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}ARION{% endblock %}</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="bg-light d-flex flex-column min-vh-screen">
+
+<!-- Navegación principal: adapta el menú según si existe una sesión iniciada. -->
+    <header class="navbar navbar-expand-md navbar-light bg-white border-b sticky-top shadow-sm py-2">
+        <div class="container-xl">
+            <a class="navbar-brand fw-black fs-3 text-dark tracking-tight" href="{{ url_for('home') }}">
+                ARION
+            </a>
+
+            <div class="d-flex align-items-center gap-2 ms-auto order-md-3">
+                {% if not session.get('user_id') %}
+                    <a href="{{ url_for('login') }}" class="btn btn-primary rounded-pill px-3 px-md-4 fw-medium btn-auth-header">
+                        Acceder
+                    </a>
+                {% else %}
+                    {% if session.get('id_tipo') == 2 %}
+                    <a href="{{ url_for('aprobaciones') }}" class="btn btn-light border rounded-circle d-inline-flex align-items-center justify-content-center position-relative p-0"
+                       style="width: 38px; height: 38px;" aria-label="Notificaciones de aprobaciones" title="Notificaciones">
+                        <i class="bi bi-bell fs-6 text-dark"></i>
+                        {% if pendientes_revision_count and pendientes_revision_count > 0 %}
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                            {{ pendientes_revision_count }}
+                        </span>
+                        {% endif %}
+                    </a>
+                    {% endif %}
+                    <a href="{{ url_for('logout') }}" class="btn btn-outline-danger rounded-pill px-3 px-md-4 fw-medium btn-auth-header">
+                        Cerrar sesión
+                    </a>
+                {% endif %}
+
+                <button class="navbar-toggler border-0 p-1" type="button" data-bs-toggle="collapse" data-bs-target="#navbarARION" aria-controls="navbarARION" aria-expanded="false" aria-label="Toggle navigation">
+                    <i class="bi bi-list fs-2"></i>
+                </button>
+            </div>
+
+            <div class="collapse navbar-collapse order-md-2" id="navbarARION">
+                <ul class="navbar-nav me-auto mb-2 mb-md-0 gap-md-3 mt-2 mt-md-0">
+                    <li class="nav-item">
+                        <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'home' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
+                        href="{{ url_for('home') }}">Inicio</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'explorar' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
+                        href="{{ url_for('explorar') }}">Explorar proyectos</a>
+                    </li>
+                    {% if session.get('user_id') %}
+                    <li class="nav-item">
+                        <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'subir' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
+                        href="{{ url_for('subir') }}">Subir proyecto</a>
+                    </li>
+                    {% if session.get('id_tipo') == 2 %}
+                    <li class="nav-item">
+                        <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'aprobaciones' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
+                           href="{{ url_for('aprobaciones') }}">Revisiones</a>
+                    </li>
+                    {% endif %}
+                    <li class="nav-item">
+                        <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'perfil' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
+                        href="{{ url_for('perfil') }}">Mi perfil</a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'recursos' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
+                        href="{{ url_for('recursos') }}">Recursos</a>
+                    </li>
+                    {% endif %}
+                    <li class="nav-item">
+                        <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'acerca' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
+                        href="{{ url_for('acerca') }}">Acerca de</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </header>
+
+    <!-- Mensajes temporales: muestra avisos enviados por Flask y los oculta automáticamente. -->
+    <div class="position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 1080; width: 100%; max-width: 450px;" id="flash-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{% if category == 'danger' or category == 'warning' %}danger{% else %}success{% endif %} alert-dismissible fade show shadow-lg rounded-4 text-center" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    <script>
+        setTimeout(function() {
+            let alerts = document.querySelectorAll('#flash-container .alert');
+            alerts.forEach(function(alert) {
+                let bsAlert = bootstrap.Alert.getInstance(alert) || new bootstrap.Alert(alert);
+                bsAlert.close();
+            });
+        }, 3000);
+    </script>
+
+    <main class="container-xl flex-grow-1 py-4">
+        {% block content %}
+        {% endblock %}
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+<!-- Pie de página: ofrece navegación secundaria y enlaces institucionales. -->
+<footer class="bg-body-secondary border-top mt-auto">
+        <div class="container-xl py-5">
+            <div class="row g-4 text-start">
+                
+                <div class="col-12 col-md-3">
+                    <a class="text-dark fw-black fs-4 text-decoration-none" href="{{ url_for('home') }}">ARION</a>
+                    <p class="text-muted small mt-3 lh-base">
+                        La plataforma para compartir, descubrir y destacar proyectos innovadores.
+                    </p>
+                </div>
+
+                <div class="col-6 col-sm-4 col-md-2">
+                    <h5 class="fw-bold text-dark fs-6 mb-3">Navegación</h5>
+                    <ul class="nav flex-column gap-2">
+                        <li class="nav-item"><a href="{{ url_for('home') }}" class="nav-link p-0 text-muted small text-hover-dark">Inicio</a></li>
+                        <li class="nav-item"><a href="{{ url_for('explorar') }}" class="nav-link p-0 text-muted small text-hover-dark">Explorar proyectos</a></li>
+                        {% if session.get('user_id') %}
+                        <li class="nav-item"><a href="{{ url_for('subir') }}" class="nav-link p-0 text-muted small text-hover-dark">Subir proyecto</a></li>
+                        <li class="nav-item"><a href="{{ url_for('recursos') }}" class="nav-link p-0 text-muted small text-hover-dark">Recursos</a></li>
+                        {% endif %}
+                    </ul>
+                </div>
+
+                <div class="col-6 col-sm-4 col-md-2">
+                    <h5 class="fw-bold text-dark fs-6 mb-3">Soporte</h5>
+                    <ul class="nav flex-column gap-2">
+                        <li class="nav-item"><a href="{{ url_for('soporte') }}" class="nav-link p-0 text-muted small text-hover-dark">Ayuda</a></li>
+                        <li class="nav-item"><a href="{{ url_for('soporte') }}" class="nav-link p-0 text-muted small text-hover-dark">Centro de soporte</a></li>
+                        <li class="nav-item"><a href="#" class="nav-link p-0 text-muted small text-hover-dark">Términos y condiciones</a></li>
+                        <li class="nav-item"><a href="#" class="nav-link p-0 text-muted small text-hover-dark">Política de privacidad</a></li>
+                    </ul>
+                </div>
+                <div class="col-12 col-md-2 text-md-start">
+                    <h5 class="fw-bold text-dark fs-6 mb-3">Institución</h5>
+                    <div class="d-flex gap-2">
+                        <a href="https://www.sagradafamiliapalmira.edu.co/" target="_blank" rel="noopener" aria-label="Sitio web del colegio" title="Sitio web del colegio"
+                        class="btn btn-white bg-white border text-secondary d-flex align-items-center justify-content-center p-0 rounded-3 shadow-sm custom-social-btn"
+                        style="width: 38px; height: 38px;">
+                            <i class="bi bi-globe fs-6"></i>
+                        </a>
+                        <a href="https://www.facebook.com/share/1HyJkucd5s/" target="_blank" rel="noopener" aria-label="Facebook del colegio" title="Facebook"
+                        class="btn btn-white bg-white border text-secondary d-flex align-items-center justify-content-center p-0 rounded-3 shadow-sm custom-social-btn"
+                        style="width: 38px; height: 38px;">
+                            <i class="bi bi-facebook fs-6"></i>
+                        </a>
+                        <a href="https://www.instagram.com/iesafapalmira?srtk=MXM5MG53c3dvandyeQ==" target="_blank" rel="noopener" aria-label="Instagram del colegio" title="Instagram"
+                        class="btn btn-white bg-white border text-secondary d-flex align-items-center justify-content-center p-0 rounded-3 shadow-sm custom-social-btn"
+                        style="width: 38px; height: 38px;">
+                            <i class="bi bi-instagram fs-6"></i>
+                        </a>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="border-top text-center mt-4 pt-3">
+                <p class="text-muted small mb-0">&copy; 2026 Arion. Todos los derechos reservados.</p>
+            </div>
+        </div>
+    </footer>
+</html>
