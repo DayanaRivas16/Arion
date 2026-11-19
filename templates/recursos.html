@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}Arion - Recursos y Ayuda{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/recursos.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <!-- Encabezado de la sección -->
+    <div class="text-center mb-5">
+        <h1 class="fw-bold text-dark">Centro de Recursos y Ayuda</h1>
+        <p class="text-muted">Explora manuales, plantillas y guías prácticas para dominar todas las funciones de Arion.</p>
+    </div>
+
+    <!-- Contenedor de Tarjetas de Recursos -->
+    <div class="row g-4 justify-content-center" id="resources-container">
+
+        <!-- Recurso 1: Manual de Usuario -->
+        <div class="col-md-4 resource-item" data-category="manual">
+            <div class="card h-100 border-0 shadow-sm rounded-4 resource-card">
+                <div class="card-body p-4 d-flex flex-column">
+                    <div class="badge bg-primary-subtle text-primary align-self-start mb-3 px-3 py-2 rounded-pill fw-semibold">Manual</div>
+                    <h5 class="card-title fw-bold">Manual de Usuario de Arion</h5>
+                    <p class="card-text text-muted small flex-grow-1">Documentación oficial completa sobre cómo navegar por la plataforma, publicar proyectos, gestionar tu perfil institucional y utilizar las herramientas colaborativas.</p>
+
+                    <!-- ================================================================= -->
+                    <!-- agregar el documento                                              -->
+                    <!-- ================================================================= -->
+                    <a href="#" class="btn btn-primary mt-3 rounded-3 w-100" target="_blank">
+                        <i class="fas fa-book-open me-2"></i>Leer Manual
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recurso 2: Guía de Publicación -->
+        <div class="col-md-4 resource-item" data-category="guia">
+            <div class="card h-100 border-0 shadow-sm rounded-4 resource-card">
+                <div class="card-body p-4 d-flex flex-column">
+                    <div class="badge bg-success-subtle text-success align-self-start mb-3 px-3 py-2 rounded-pill fw-semibold">Guía</div>
+                    <h5 class="card-title fw-bold">Guía para Publicar Proyectos</h5>
+                    <p class="card-text text-muted small flex-grow-1">Paso a paso detallado sobre cómo estructurar el título, la descripción, seleccionar la categoría correcta y subir archivos adjuntos exitosamente.</p>
+
+                    <!-- ================================================================= -->
+                    <!-- abrir guía interactiva de publicación                               -->
+                    <!-- ================================================================= -->
+                    <button type="button"
+                            class="btn btn-outline-primary mt-3 rounded-3 w-100"
+                            data-bs-toggle="modal"
+                            data-bs-target="#guiaPublicarModal">
+                        <i class="fas fa-external-link-alt me-2"></i>Ver Guía
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Modal: Guía para Publicar Proyectos -->
+    <div class="modal fade" id="guiaPublicarModal" tabindex="-1" aria-labelledby="guiaPublicarModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content border-0 rounded-4 shadow">
+                <div class="modal-header border-bottom px-4 py-3">
+                    <div>
+                        <span class="badge bg-success-subtle text-success rounded-pill px-3 py-1 mb-1">Guía paso a paso</span>
+                        <h5 class="modal-title fw-bold text-dark m-0" id="guiaPublicarModalLabel">Cómo publicar tu proyecto en Arion</h5>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+
+                <div class="modal-body p-4">
+                    <p class="text-muted small mb-4">
+                        El formulario de subida se divide en 4 pasos. Completa los campos obligatorios y revisa el resumen antes de publicar o guardar como borrador.
+                    </p>
+
+                    <div class="guia-pasos d-flex flex-column gap-3 mb-4">
+                        <div class="guia-paso-item">
+                            <span class="guia-paso-num">1</span>
+                            <div>
+                                <h6 class="fw-bold text-dark mb-1">Información básica</h6>
+                                <p class="text-muted small mb-0">
+                                    Escribe un <strong>título</strong> claro (máx. 200 caracteres), una <strong>descripción</strong> del proyecto, elige una <strong>categoría</strong> y agrega entre 1 y <strong>10 etiquetas</strong> presionando Enter o el botón <code>+</code>.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="guia-paso-item">
+                            <span class="guia-paso-num">2</span>
+                            <div>
+                                <h6 class="fw-bold text-dark mb-1">Multimedia y documentos</h6>
+                                <p class="text-muted small mb-0">
+                                    Sube una <strong>imagen de portada</strong> obligatoria (<code>PNG</code>, <code>JPG</code> o <code>WEBP</code>, máx. 5 MB), tus <strong>documentos</strong> (<code>PDF</code> o <code>DOCX</code>, hasta 5 archivos y 10 MB en total) y, si deseas, un <strong>enlace</strong> externo (GitHub, demo o video).
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="guia-paso-item">
+                            <span class="guia-paso-num">3</span>
+                            <div>
+                                <h6 class="fw-bold text-dark mb-1">Detalles del equipo</h6>
+                                <p class="text-muted small mb-0">
+                                    Indica el <strong>profesor a cargo</strong> y el <strong>grado</strong> (obligatorios). Opcionalmente, busca y añade a los <strong>integrantes</strong> del equipo que ya hayan iniciado sesión en Arion (tú quedas como autor).
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="guia-paso-item">
+                            <span class="guia-paso-num">4</span>
+                            <div>
+                                <h6 class="fw-bold text-dark mb-1">Revisión y estado</h6>
+                                <p class="text-muted small mb-0">
+                                    Verifica el resumen final y elige si deseas guardar como <strong>Borrador</strong> (visible solo para ti en tu perfil) o <strong>Publicado</strong> (visible en Explorar).
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Ejemplo breve -->
+                    <div class="guia-ejemplo-box rounded-4 p-3 p-sm-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="fw-bold small text-dark">
+                                <i class="fas fa-lightbulb text-warning me-2"></i>Ejemplo breve de llenado
+                            </span>
+                            <span class="badge bg-white text-secondary border rounded-pill">Ejemplo</span>
+                        </div>
+                        <ul class="list-unstyled small text-secondary mb-0 d-flex flex-column gap-1">
+                            <li><strong>Título:</strong> Sistema de Alarma Visual</li>
+                            <li><strong>Descripción:</strong> Prototipo que alerta mediante señales visuales en pantalla cuando se detecta una novedad en el aula.</li>
+                            <li><strong>Categoría y etiquetas:</strong> Tecnología / Electrónica · <code>Python</code>, <code>Sensores</code>, <code>Accesibilidad</code></li>
+                            <li><strong>Archivos:</strong> <code>portada_alarma.png</code> (2.1 MB) + <code>documentacion_final.pdf</code> (3.4 MB)</li>
+                            <li><strong>Profesor y grado:</strong> Carlos Méndez · <code>11°</code> · <strong>Estado:</strong> Publicado</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="modal-footer border-top px-4 py-3 d-flex justify-content-between">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Cerrar</button>
+                    <a href="{{ url_for('subir') }}" class="btn btn-primary rounded-pill px-4">
+                        Ir a Subir Proyecto
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/recursos.js') }}"></script>
+{% endblock %}
