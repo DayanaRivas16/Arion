@@ -26,4 +26,11 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('delete-titulo').textContent = b.dataset.titulo || '';
         });
     }
+    if (window.location.hash === '#tab-consultas') {
+        const triggerEl = document.querySelector('#consultas-tab');
+        if (triggerEl && window.bootstrap && window.bootstrap.Tab) {
+            const tab = new window.bootstrap.Tab(triggerEl);
+            tab.show();
+        }
+    }
 });

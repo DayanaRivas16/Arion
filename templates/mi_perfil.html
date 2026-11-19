@@ -8,17 +8,18 @@
 
 {# Tarjeta de proyecto. Con propio=True muestra el estado y los botones Editar / Eliminar #}
 {% macro tarjeta(p, propio=False) %}
+
 <div class="col">
     <div class="card h-100 border-0 rounded-4 shadow-sm overflow-hidden custom-profile-card">
         <div class="position-relative overflow-hidden" style="height: 160px;">
             {% if p.imagen %}
+            <!-- Si el proyecto tiene imagen, se muestra. -->
                 <img src="{{ p.imagen }}" class="w-100 h-100 object-cover card-img-anim" alt="Portada de {{ p.titulo }}">
             {% else %}
                 <div class="w-100 h-100 bg-light d-flex align-items-center justify-content-center text-muted"><i class="bi bi-image fs-1"></i></div>
             {% endif %}
-            {% if p.destacado %}
-            <span class="position-absolute top-0 start-0 m-2 badge bg-warning text-dark rounded-pill fw-bold" style="font-size: 10px;">⭐ Destacado</span>
-            {% endif %}
+            <!-- Si el proyecto es propio, se muestra  con el estado del proyecto (Publicado o Borrador) -->
+            <!-- El estado  se posiciona en la esquina superior derecha de la tarjeta -->
             {% if propio %}
             <span class="position-absolute top-0 end-0 m-2 badge rounded-pill {{ 'bg-success' if p.estado|lower == 'publicado' else 'bg-secondary' }}" style="font-size: 10px;">{{ p.estado }}</span>
             {% endif %}
@@ -160,6 +161,11 @@
                             <i class="bi bi-bookmark me-1"></i><span class="d-none d-sm-inline">Guardados </span><span class="opacity-75">({{ guardados|length }})</span>
                         </button>
                     </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="consultas-tab" data-bs-toggle="tab" data-bs-target="#tab-consultas" type="button" role="tab">
+                            Consultas ({{ mis_consultas|length }})
+                        </button>
+                    </li>
                 </ul>
 
                 <div class="tab-content">
@@ -205,12 +211,74 @@
                         </div>
                         {% endif %}
                     </div>
-                </div>
-            </div>
 
+                    <!-- Guardados -->
+                    <div class="tab-pane fade" id="tab-guardados" role="tabpanel">
+                        {% if guardados %}
+                        <div class="row g-4 row-cols-1 row-cols-sm-2">
+                            {% for p in guardados %}{{ tarjeta(p) }}{% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="text-center py-5">
+                            <i class="bi bi-bookmark display-4 text-muted mb-3 d-block"></i>
+                            <p class="text-muted">No has guardado ningún proyecto</p>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Mis consultas de soporte -->
+                     <div class="tab-pane fade" id="tab-consultas" role="tabpanel">
+    <div class="consultas-toolbar">
+        <a href="{{ url_for('soporte') }}" class="btn btn-primary">
+            Nueva consulta o reporte
+        </a>
+    </div>
+
+    {% if mis_consultas %}
+        <div class="consultas-lista">
+            {% for c in mis_consultas %}
+                {% set estado_lower = (c.estado or 'pendiente')|lower %}
+                <article class="consulta-item">
+                    <div class="consulta-header">
+                        <h4 class="consulta-asunto">{{ c.asunto }}</h4>
+                        <span class="badge-estado estado-{{ estado_lower|replace(' ', '-') }}">
+                            {{ c.estado|capitalize }}
+                        </span>
+                    </div>
+
+                    <p class="consulta-descripcion">{{ c.descripcion }}</p>
+                    <small class="consulta-fecha">
+                        Enviada: {{ c.fecha_creacion.strftime('%d/%m/%Y %H:%M') if c.fecha_creacion else '' }}
+                    </small>
+
+                    <div class="consulta-respuesta-box">
+                        <strong>Respuesta del administrador:</strong>
+                        {% if c.respuesta %}
+                            <p class="consulta-respuesta-texto">{{ c.respuesta }}</p>
+                            {% if c.fecha_respuesta %}
+                                <small class="consulta-fecha">
+                                    Respondida: {{ c.fecha_respuesta.strftime('%d/%m/%Y %H:%M') }}
+                                    {% if c.respondido_por_nombre %} · {{ c.respondido_por_nombre }}{% endif %}
+                                </small>
+                            {% endif %}
+                        {% else %}
+                            <p class="consulta-sin-respuesta">Aún no hay respuesta registrada.</p>
+                        {% endif %}
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="consultas-vacio">
+            <p>Aún no has enviado consultas de soporte.</p>
+        </div>
+    {% endif %}
+</div>
+       
         </div>
     </div>
 </div>
+
 <!-- Ventanas emergentes: editan o confirman la eliminación de un proyecto propio. -->
 <div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">

@@ -15,19 +15,30 @@
 </head>
 <body class="bg-light d-flex flex-column min-vh-screen">
 
-    <!-- Navegación principal: adapta el menú según si existe una sesión iniciada. -->
+<!-- Navegación principal: adapta el menú según si existe una sesión iniciada. -->
     <header class="navbar navbar-expand-md navbar-light bg-white border-b sticky-top shadow-sm py-2">
         <div class="container-xl">
             <a class="navbar-brand fw-black fs-3 text-dark tracking-tight" href="{{ url_for('home') }}">
                 ARION
             </a>
 
-            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarARION" aria-controls="navbarARION" aria-expanded="false" aria-label="Toggle navigation">
-                <i class="bi bi-list fs-2"></i>
-            </button>
+            <div class="d-flex align-items-center gap-2 ms-auto order-md-3">
+                {% if not session.get('user_id') %}
+                    <a href="{{ url_for('login') }}" class="btn btn-primary rounded-pill px-3 px-md-4 fw-medium btn-auth-header">
+                        Acceder
+                    </a>
+                {% else %}
+                    <a href="{{ url_for('logout') }}" class="btn btn-outline-danger rounded-pill px-3 px-md-4 fw-medium btn-auth-header">
+                        Cerrar sesión
+                    </a>
+                {% endif %}
 
-            <div class="collapse navbar-collapse" id="navbarARION">
-                
+                <button class="navbar-toggler border-0 p-1" type="button" data-bs-toggle="collapse" data-bs-target="#navbarARION" aria-controls="navbarARION" aria-expanded="false" aria-label="Toggle navigation">
+                    <i class="bi bi-list fs-2"></i>
+                </button>
+            </div>
+
+            <div class="collapse navbar-collapse order-md-2" id="navbarARION">
                 <ul class="navbar-nav me-auto mb-2 mb-md-0 gap-md-3 mt-2 mt-md-0">
                     <li class="nav-item">
                         <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'home' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
@@ -54,21 +65,8 @@
                     <li class="nav-item">
                         <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'acerca' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
                         href="{{ url_for('acerca') }}">Acerca de</a>
-                    </li>                    
+                    </li>
                 </ul>
-
-                <div class="d-flex flex-column flex-md-row gap-2 pt-2 pt-md-0 border-top border-md-0 mt-2 mt-md-0">
-                    {% if not session.get('user_id') %}
-                        <a href="{{ url_for('login') }}" class="btn btn-primary rounded-pill px-4 fw-medium">
-                            Acceder
-                        </a>
-                    {% else %}
-                        <a href="{{ url_for('logout') }}" class="btn btn-outline-danger rounded-pill px-4 fw-medium">
-                            Cerrar sesión
-                        </a>
-                    {% endif %}
-                </div>
-
             </div>
         </div>
     </header>

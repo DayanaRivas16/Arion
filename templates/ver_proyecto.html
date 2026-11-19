@@ -3,8 +3,14 @@
 {% block title %}{{ proyecto.titulo }} - ARION{% endblock %}
 
 {% macro tam(b) -%}
-    {%- if b -%}{%- if b < 1048576 -%}{{ (b / 1024)|round(0)|int }} KB{%- else -%}{{ (b / 1048576)|round(1) }} MB{%- endif -%}{%- endif -%}
-{%- endmacro %}
+    {% if b %}
+        {% if b < 1048576 %}
+            {{ (b / 1024)|round(0)|int }} KB
+        {% else %}
+            {{ (b / 1048576)|round(1) }} MB
+        {% endif %}
+    {% endif %}
+{% endmacro %}
 
 {% block content %}
 {% set meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'] %}

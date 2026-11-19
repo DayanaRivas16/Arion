@@ -1343,15 +1343,40 @@ def perfil():
         cursor.execute("SELECT id_categoria AS id, nombre_categoria AS nombre FROM categorias ORDER BY nombre_categoria;")
         categorias = cursor.fetchall()
 
+        # Justo después de cargar `categorias` (dentro del try de perfil()):
+        cursor.execute("""
+            SELECT s.id_soporte,
+                   s.asunto,
+                   s.descripcion,
+                   s.estado,
+                   s.respuesta,
+                   s.fecha_creacion,
+                   s.fecha_respuesta,
+                   u_resp.nombre_completo AS respondido_por_nombre
+            FROM soporte s
+            LEFT JOIN usuarios u_resp ON u_resp.id_usuario = s.respondido_por
+            WHERE s.usuario_id = %s
+            ORDER BY s.fecha_creacion DESC;
+        """, (uid,))
+        mis_consultas = cursor.fetchall()
+
     except Exception:
         app.logger.exception('Error cargando el perfil del usuario')
         flash('No se pudo cargar la información del perfil.', 'danger')
-        usuario, proyectos, borradores, guardados, categorias = {}, [], [], [], []
+        usuario, proyectos, borradores, guardados, categorias, mis_consultas= {}, [], [], [], [], []
     finally:
         cursor.close()
         conn.close()
 
-    return render_template('mi_perfil.html', usuario=usuario, proyectos=proyectos, borradores=borradores, guardados=guardados, categorias=categorias)
+    return render_template(
+        'mi_perfil.html',
+        usuario=usuario,
+        proyectos=proyectos,
+        borradores=borradores,
+        guardados=guardados,
+        categorias=categorias,
+        mis_consultas=mis_consultas
+    )
 
 
 # ======================================================
@@ -1506,7 +1531,7 @@ def eliminar_proyecto(id):
     return redirect(url_for('perfil'))
 
 # ==========================================================
-# RUTA DE SOPORTE (HU-18)
+# RUTA DE SOPORTE
 # ==========================================================
 @app.route('/soporte', methods=['GET', 'POST'])
 def soporte():
@@ -1534,14 +1559,18 @@ def soporte():
     cursor = None
     admin_emails = []
     usuario = None
+    token_resp = uuid.uuid4().hex
+
     try:
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
 
         cursor.execute("""
-            INSERT INTO soporte (usuario_id, asunto, descripcion, estado)
-            VALUES (%s, %s, %s, 'pendiente');
-        """, (uid, asunto, descripcion))
+            INSERT INTO soporte (usuario_id, asunto, descripcion, estado, token_respuesta)
+            VALUES (%s, %s, %s, 'pendiente', %s)
+            RETURNING id_soporte;
+        """, (uid, asunto, descripcion, token_resp))
+        id_soporte = cursor.fetchone()['id_soporte']
 
         cursor.execute("""
             SELECT nombre_completo, correo_usuario
@@ -1583,6 +1612,8 @@ def soporte():
         )
         return redirect(url_for('soporte'))
 
+    enlace_respuesta = url_for('responder_soporte_token', token=token_resp, _external=True)
+
     try:
         mail.send(Message(
             subject='Nueva consulta de soporte - ARION',
@@ -1593,7 +1624,8 @@ def soporte():
                 f'Correo: {usuario["correo_usuario"]}\n'
                 f'Asunto: {asunto}\n\n'
                 f'Mensaje:\n{descripcion}\n\n'
-                'Puedes revisar la consulta en el panel de administración, sección Reportes.'
+                f'Responder y actualizar estado aquí: {enlace_respuesta}\n\n'
+                'También puedes revisar la consulta en el panel de administración, sección Reportes.'
             )
         ))
     except Exception:
@@ -1607,6 +1639,60 @@ def soporte():
 
     return redirect(url_for('soporte'))
 
+
+@app.route('/soporte/responder/<token>', methods=['GET', 'POST'])
+@login_required
+def responder_soporte_token(token):
+    if session.get('id_tipo') != ID_TIPO_ADMIN:
+        abort(403)
+
+    consulta = consultar("""
+        SELECT s.id_soporte, s.usuario_id, s.asunto, s.descripcion,
+               s.estado, s.respuesta, s.fecha_creacion, s.fecha_respuesta,
+               u.nombre_completo AS usuario_nombre, u.correo_usuario AS usuario_correo
+        FROM soporte s
+        JOIN usuarios u ON u.id_usuario = s.usuario_id
+        WHERE s.token_respuesta = %s;
+    """, (token,), uno=True)
+
+    if not consulta:
+        abort(404)
+
+    if request.method == 'POST':
+        respuesta_texto = (request.form.get('respuesta') or '').strip()
+        nuevo_estado = (request.form.get('estado') or 'resuelta').strip().lower()
+
+        if nuevo_estado not in ('pendiente', 'en proceso', 'resuelta'):
+            flash('Estado no válido.', 'danger')
+            return redirect(url_for('responder_soporte_token', token=token))
+
+        if respuesta_texto and nuevo_estado == 'pendiente':
+            nuevo_estado = 'resuelta'
+
+        if not respuesta_texto and nuevo_estado == 'resuelta':
+            flash('Escribe una respuesta antes de marcar la consulta como resuelta.', 'warning')
+            return redirect(url_for('responder_soporte_token', token=token))
+
+        ejecutar_uno("""
+            UPDATE soporte
+            SET respuesta = %s,
+                estado = %s,
+                fecha_respuesta = CASE WHEN %s <> '' THEN CURRENT_TIMESTAMP ELSE fecha_respuesta END,
+                respondido_por = CASE WHEN %s <> '' THEN %s ELSE respondido_por END
+            WHERE id_soporte = %s;
+        """, (
+            respuesta_texto if respuesta_texto else consulta['respuesta'],
+            nuevo_estado,
+            respuesta_texto,
+            respuesta_texto,
+            session['user_id'],
+            consulta['id_soporte']
+        ))
+
+        flash('Consulta actualizada correctamente en el sistema.', 'success')
+        return redirect(url_for('admin_reportes'))
+
+    return render_template('responder_soporte.html', consulta=consulta)
 
 if __name__ == '__main__':
     app.run(debug=True)

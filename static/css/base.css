@@ -180,3 +180,14 @@ main {
     color: white !important;
     box-shadow: 0 4px 6px -1px rgba(13, 110, 253, 0.2);
 }
+
+.btn-auth-header {
+    white-space: nowrap;
+}
+
+@media (max-width: 767.98px) {
+    .btn-auth-header {
+        font-size: 0.875rem;
+        padding: 0.35rem 0.9rem;
+    }
+}
