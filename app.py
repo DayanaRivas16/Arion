@@ -849,15 +849,6 @@ def guardar_etiquetas(cursor, id_proyecto, texto_etiquetas):
             id_etiqueta
         ))
 
-# ==========================================================
-# RUTAS DE VISTA DE PROYECTOS, LIKES Y VALORACIONES
-# ==========================================================
-
-@app.template_filter('iniciales')
-def iniciales(nombre):
-    return ''.join(p[0] for p in (nombre or '').split()[:2]).upper() or '?'
-
-
 @app.route('/proyecto/<int:id>')
 @login_required
 def ver_proyecto(id):
@@ -888,13 +879,32 @@ def ver_proyecto(id):
             abort(404)
 
         es_autor = p['id_autor'] == uid
-        # Un borrador solo lo ve su autor
-        if (p['estado'] or '').lower() != 'publicado' and not es_autor:
+        es_docente = session.get('id_tipo') == ID_TIPO_DOCENTE
+        nombre_actual = ''
+        if es_docente:
+            cursor.execute("SELECT nombre_completo FROM usuarios WHERE id_usuario = %s;", (uid,))
+            doc_actual = cursor.fetchone()
+            nombre_actual = (doc_actual['nombre_completo'] or '').strip().lower() if doc_actual else ''
+
+        es_docente_asignado = (
+            es_docente
+            and bool(nombre_actual)
+            and (
+                (p['profesor'] or '').strip().lower() == nombre_actual
+                or (p['profesor'] or '').strip().lower() in nombre_actual
+                or nombre_actual in (p['profesor'] or '').strip().lower()
+            )
+        )
+
+        estado_actual = (p['estado'] or '').strip().lower()
+        puede_ver = (estado_actual == 'publicado') or es_autor or es_docente_asignado
+
+        if not puede_ver:
             abort(404)
 
-        # Suma una vista (no cuenta las del autor)
+        # Suma una vista (no cuenta las del autor ni del docente revisor)
         p['vistas'] = p['vistas'] or 0
-        if not es_autor:
+        if not es_autor and not es_docente_asignado:
             cursor.execute("UPDATE proyectos SET vistas_count = COALESCE(vistas_count, 0) + 1 WHERE id_proyecto = %s;", (id,))
             conn.commit()
             p['vistas'] += 1
@@ -957,7 +967,6 @@ def ver_proyecto(id):
                            integrantes=integrantes, documentos=documentos, enlace=enlace,
                            ya_like=ya_like, mi_valoracion=mi_valoracion,
                            total_valoraciones=total_valoraciones, es_autor=es_autor)
-
 # ==========================================================
 # RUTAS PARA LIKES Y VALORACIONES
 # ==========================================================
@@ -1046,7 +1055,6 @@ def valorar_proyecto(id):
         if cursor: cursor.close()
         if conn: conn.close()
 
-
 # ==========================================================
 # RUTA COMPLETA PARA SUBIR PROYECTOS
 # ==========================================================
@@ -1085,8 +1093,12 @@ def datos_formulario(uid):
         categorias = cursor.fetchall()
         cursor.execute("""
             SELECT id_usuario AS id, nombre_completo AS nombre, foto_perfil AS foto
-            FROM usuarios WHERE id_usuario <> %s ORDER BY nombre_completo;
-        """, (uid,))
+            FROM usuarios
+            WHERE id_usuario <> %s
+              AND id_tipo = %s
+              AND COALESCE(activo, TRUE) = TRUE
+            ORDER BY nombre_completo;
+        """, (uid, ID_TIPO_ESTUDIANTE))
         usuarios = cursor.fetchall()
     finally:
         cursor.close()
@@ -1168,7 +1180,7 @@ def subir():
     # Guardar en la bd
     conn = None
     cursor = None
-    escritos = []          
+    escritos = []
     confirmado = False
     id_proyecto = None
 
@@ -1180,10 +1192,16 @@ def subir():
         if not cursor.fetchone():
             return volver('La categoría seleccionada no es válida.')
 
-        # Solo integrantes que existan de verdad
+        # Solo integrantes que existan de verdad y sean estudiantes activos
         ids_ok = []
         if ids_integrantes:
-            cursor.execute("SELECT id_usuario FROM usuarios WHERE id_usuario = ANY(%s);", (list(ids_integrantes),))
+            cursor.execute("""
+                SELECT id_usuario
+                FROM usuarios
+                WHERE id_usuario = ANY(%s)
+                  AND id_tipo = %s
+                  AND COALESCE(activo, TRUE) = TRUE;
+            """, (list(ids_integrantes), ID_TIPO_ESTUDIANTE))
             ids_ok = [f['id_usuario'] for f in cursor.fetchall()]
 
         # Portada
@@ -1191,6 +1209,8 @@ def subir():
         ruta_img = os.path.join(app.config['UPLOAD_FOLDER'], nombre_img)
         imagen.save(ruta_img)
         escritos.append(ruta_img)
+
+        estado_bd = 'Pendiente' if estado_form == 'publicado' else 'Borrador'
 
         cursor.execute("""
             INSERT INTO proyectos (
@@ -1201,7 +1221,7 @@ def subir():
             RETURNING id_proyecto;
         """, (
             titulo, descripcion, f'uploads/proyectos/{nombre_img}', profesor, grado,
-            'Publicado' if estado_form == 'publicado' else 'Borrador',
+            estado_bd,
             uid, id_categoria
         ))
         id_proyecto = cursor.fetchone()['id_proyecto']
@@ -1258,7 +1278,10 @@ def subir():
         if conn:
             conn.close()
 
-    flash('¡Proyecto guardado correctamente!', 'success')
+    if estado_bd == 'Pendiente':
+        flash('¡Proyecto enviado a revisión del docente!', 'success')
+    else:
+        flash('¡Proyecto guardado en borradores correctamente!', 'success')
     return redirect(url_for('ver_proyecto', id=id_proyecto))
 
 #=========================================================
@@ -1317,7 +1340,8 @@ def perfil():
         #  Borradores 
         cursor.execute("""
             SELECT p.id_proyecto AS id, p.titulo, p.descripcion, 
-                   p.imagen_portada, p.estado, p.es_destacado AS destacado,
+                   p.imagen_portada, p.estado, p.motivo_rechazo,
+                   p.es_destacado AS destacado,
                    p.vistas_count AS vistas, p.likes_count AS likes,
                    p.calificacion::float AS rating, p.id_categoria,
                    COALESCE(c.nombre_categoria, 'Sin categoría') AS categoria,
@@ -1404,40 +1428,77 @@ def docente_required(f):
     return decorated_function
 
 
+@app.context_processor
+def inyectar_pendientes_docente():
+    if session.get('user_id') and session.get('id_tipo') == ID_TIPO_DOCENTE:
+        conn = cur = None
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("SELECT nombre_completo FROM usuarios WHERE id_usuario = %s;", (session['user_id'],))
+            docente = cur.fetchone()
+            nombre_docente = (docente['nombre_completo'] or '').strip() if docente else ''
+
+            cur.execute("""
+                SELECT COUNT(*) AS total
+                FROM proyectos
+                WHERE LOWER(COALESCE(estado, '')) = 'pendiente'
+                  AND LOWER(TRIM(COALESCE(profesor_a_cargo, ''))) = LOWER(TRIM(%s));
+            """, (nombre_docente,))
+            fila = cur.fetchone()
+            return {'pendientes_revision_count': fila['total'] if fila else 0}
+        except Exception:
+            app.logger.exception('Error calculando pendientes del docente')
+            return {'pendientes_revision_count': 0}
+        finally:
+            if cur: cur.close()
+            if conn: conn.close()
+    return {'pendientes_revision_count': 0}
+
+
 @app.route('/aprobaciones')
 @docente_required
 def aprobaciones():
+    uid = session['user_id']
     conn = None
     cur = None
     proyectos_pendientes = []
 
     try:
         conn = get_db_connection()
-        cur = conn.cursor()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Ajusta aquí los nombres de columnas si en tu tabla proyectos se llaman diferente
+        cur.execute("""
+            SELECT nombre_completo
+            FROM usuarios
+            WHERE id_usuario = %s;
+        """, (uid,))
+        docente = cur.fetchone()
+        nombre_docente = (docente['nombre_completo'] or '').strip() if docente else ''
+
         cur.execute("""
             SELECT
                 p.id_proyecto,
                 p.titulo,
                 p.descripcion,
                 p.grado,
-                p.imagen_url,
+                p.profesor_a_cargo,
+                p.imagen_portada,
                 p.fecha_creacion,
                 c.nombre_categoria AS categoria,
                 u.nombre_completo AS autor
             FROM proyectos p
             LEFT JOIN usuarios u ON p.id_usuario = u.id_usuario
             LEFT JOIN categorias c ON p.id_categoria = c.id_categoria
-            WHERE LOWER(COALESCE(p.estado, '')) IN ('borrador', 'pendiente')
-            ORDER BY p.id_proyecto DESC
-        """)
+            WHERE LOWER(COALESCE(p.estado, '')) = 'pendiente'
+              AND LOWER(TRIM(COALESCE(p.profesor_a_cargo, ''))) = LOWER(TRIM(%s))
+            ORDER BY p.id_proyecto DESC;
+        """, (nombre_docente,))
 
-        columnas = [desc[0] for desc in cur.description]
-        proyectos_pendientes = [dict(zip(columnas, fila)) for fila in cur.fetchall()]
+        proyectos_pendientes = cur.fetchall()
 
     except Exception as e:
-        print(f"Error al cargar proyectos en /aprobaciones: {e}")
+        app.logger.exception('Error al cargar proyectos en /aprobaciones: %s', e)
         flash('No se pudieron cargar los proyectos pendientes desde la base de datos.', 'danger')
 
     finally:
@@ -1452,6 +1513,117 @@ def aprobaciones():
         pendientes_count=len(proyectos_pendientes)
     )
 
+
+# ======================================================
+# RUTA DE APROBAR PROYECTO
+# ======================================================
+@app.route('/aprobaciones/<int:id>/aprobar', methods=['POST'])
+@docente_required
+def aprobar_proyecto(id):
+    uid = session['user_id']
+    conn = cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute("SELECT nombre_completo FROM usuarios WHERE id_usuario = %s;", (uid,))
+        docente = cur.fetchone()
+        nombre_docente = (docente['nombre_completo'] or '').strip().lower() if docente else ''
+
+        cur.execute("""
+            SELECT id_proyecto, profesor_a_cargo
+            FROM proyectos
+            WHERE id_proyecto = %s;
+        """, (id,))
+        proyecto = cur.fetchone()
+
+        if not proyecto:
+            flash('El proyecto no existe.', 'danger')
+            return redirect(url_for('aprobaciones'))
+
+        if (proyecto['profesor_a_cargo'] or '').strip().lower() != nombre_docente:
+            flash('No tienes permiso para aprobar este proyecto.', 'danger')
+            return redirect(url_for('aprobaciones'))
+
+        cur.execute("""
+            UPDATE proyectos
+            SET estado = 'Publicado',
+                motivo_rechazo = NULL
+            WHERE id_proyecto = %s;
+        """, (id,))
+        conn.commit()
+        flash('¡Proyecto aprobado y publicado correctamente!', 'success')
+    except Exception:
+        if conn:
+            conn.rollback()
+        app.logger.exception('Error al aprobar el proyecto')
+        flash('No se pudo aprobar el proyecto.', 'danger')
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+    return redirect(url_for('aprobaciones'))
+
+
+# ======================================================
+# RUTA DE RECHAZAR PROYECTO
+# ======================================================
+@app.route('/aprobaciones/<int:id>/rechazar', methods=['POST'])
+@docente_required
+def rechazar_proyecto(id):
+    uid = session['user_id']
+    motivo = (request.form.get('motivo_rechazo') or '').strip()
+
+    if not motivo:
+        flash('Debes escribir las observaciones o el motivo del rechazo.', 'warning')
+        return redirect(url_for('aprobaciones'))
+
+    conn = cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute("SELECT nombre_completo FROM usuarios WHERE id_usuario = %s;", (uid,))
+        docente = cur.fetchone()
+        nombre_docente = (docente['nombre_completo'] or '').strip().lower() if docente else ''
+
+        cur.execute("""
+            SELECT id_proyecto, profesor_a_cargo
+            FROM proyectos
+            WHERE id_proyecto = %s;
+        """, (id,))
+        proyecto = cur.fetchone()
+
+        if not proyecto:
+            flash('El proyecto no existe.', 'danger')
+            return redirect(url_for('aprobaciones'))
+
+        if (proyecto['profesor_a_cargo'] or '').strip().lower() != nombre_docente:
+            flash('No tienes permiso para rechazar este proyecto.', 'danger')
+            return redirect(url_for('aprobaciones'))
+
+        cur.execute("""
+            UPDATE proyectos
+            SET estado = 'Borrador',
+                motivo_rechazo = %s
+            WHERE id_proyecto = %s;
+        """, (motivo, id))
+        conn.commit()
+        flash('Proyecto devuelto a borrador con las observaciones.', 'success')
+    except Exception:
+        if conn:
+            conn.rollback()
+        app.logger.exception('Error al rechazar el proyecto')
+        flash('No se pudo rechazar el proyecto.', 'danger')
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+    return redirect(url_for('aprobaciones'))
 # =====================================================================
 # MANEJO DE ERRORES 
 # =====================================================================
@@ -1516,7 +1688,7 @@ def editar_proyecto(id):
     try:
         # 3. Buscar si el proyecto existe
         cursor.execute("""
-            SELECT p.id_usuario, u.id_tipo 
+            SELECT p.id_usuario, p.estado, u.id_tipo 
             FROM proyectos p
             JOIN usuarios u ON u.id_usuario = %s
             WHERE p.id_proyecto = %s;
@@ -1527,6 +1699,7 @@ def editar_proyecto(id):
             abort(404)
             
         id_autor_proyecto = resultado['id_usuario']
+        estado_anterior = (resultado['estado'] or '').strip().lower()
         tipo_usuario_actual = resultado['id_tipo']
 
         cursor.execute("SELECT nombre_tipo FROM tipos_usuario WHERE id_tipo = %s;", (tipo_usuario_actual,))
@@ -1542,19 +1715,33 @@ def editar_proyecto(id):
             flash('La categoría seleccionada no es válida.', 'danger')
             return redirect(url_for('perfil'))
 
-        # 5. ACTUALIZAR EL PROYECTO (debe ir AQUÍ al final)
-        nuevo_estado = 'Publicado' if estado_form == 'publicado' else 'Borrador'
-        cursor.execute("""
-            UPDATE proyectos
-            SET titulo = %s, 
-                descripcion = %s, 
-                id_categoria = %s,
-                estado = %s
-            WHERE id_proyecto = %s;
-        """, (titulo, descripcion, id_categoria, nuevo_estado, id))
+        # 5. ACTUALIZAR EL PROYECTO
+        if estado_anterior == 'borrador' and estado_form == 'publicado':
+            nuevo_estado = 'Pendiente'
+            cursor.execute("""
+                UPDATE proyectos
+                SET titulo = %s, 
+                    descripcion = %s, 
+                    id_categoria = %s,
+                    estado = %s,
+                    motivo_rechazo = NULL
+                WHERE id_proyecto = %s;
+            """, (titulo, descripcion, id_categoria, nuevo_estado, id))
+            mensaje_exito = '¡Proyecto actualizado y enviado a revisión del docente!'
+        else:
+            nuevo_estado = 'Publicado' if estado_form == 'publicado' else 'Borrador'
+            cursor.execute("""
+                UPDATE proyectos
+                SET titulo = %s, 
+                    descripcion = %s, 
+                    id_categoria = %s,
+                    estado = %s
+                WHERE id_proyecto = %s;
+            """, (titulo, descripcion, id_categoria, nuevo_estado, id))
+            mensaje_exito = '¡Proyecto actualizado correctamente!'
         
         conn.commit()
-        flash('¡Proyecto actualizado correctamente!', 'success')
+        flash(mensaje_exito, 'success')
         
     except Exception:
         if conn:
@@ -1757,6 +1944,5 @@ def responder_soporte_token(token):
         return redirect(url_for('admin_reportes'))
 
     return render_template('responder_soporte.html', consulta=consulta)
-
 if __name__ == '__main__':
     app.run(debug=True)
