@@ -1,0 +1,180 @@
+{% extends 'admin/admin_base.html' %}
+
+{% block title %}Revisar proyecto - ARION Admin{% endblock %}
+
+{% block content %}
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin_revisar.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin_modal.css') }}">
+
+{% set estilos = {'Pendiente': 'warning', 'Publicado': 'success', 'Rechazado': 'danger', 'Borrador': 'secondary'} %}
+
+<a href="{{ volver_url }}" class="text-decoration-none small text-secondary">
+    <i class="bi bi-arrow-left"></i> {{ volver_texto }}
+</a>
+
+<div class="row g-4 mt-1">
+
+    <!-- ========== Columna principal ========== -->
+    <div class="col-12 col-lg-8">
+        <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+
+            {% if p.imagen_portada %}
+                <img src="{{ url_for('static', filename=p.imagen_portada) }}"
+                     alt="Portada de {{ p.titulo }}" class="revisar-portada">
+            {% endif %}
+
+            <div class="card-body p-4">
+                <div class="d-flex flex-wrap gap-2 mb-2">
+                    <span class="badge rounded-pill text-bg-{{ estilos.get(p.estado, 'secondary') }}">{{ p.estado }}</span>
+                    {% if p.es_destacado %}
+                        <span class="badge rounded-pill text-bg-warning"><i class="bi bi-star-fill"></i> Destacado</span>
+                    {% endif %}
+                    <span class="badge rounded-pill bg-light text-secondary border">{{ p.categoria or 'Sin categoría' }}</span>
+                </div>
+
+                <h1 class="h3 fw-bold mb-3">{{ p.titulo }}</h1>
+                <p class="text-secondary revisar-descripcion">{{ p.descripcion }}</p>
+
+                {% if etiquetas %}
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                    {% for e in etiquetas %}
+                        <span class="badge bg-primary-subtle text-primary rounded-pill">#{{ e.nombre_etiqueta }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Documentos -->
+        <div class="card border-0 shadow-sm rounded-4 mt-4">
+            <div class="card-body p-4">
+                <h2 class="h6 fw-bold mb-3">Documentos adjuntos</h2>
+                {% if documentos %}
+                    <ul class="list-unstyled mb-0">
+                        {% for d in documentos %}
+                        <li class="d-flex align-items-center justify-content-between py-2 border-bottom">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi {{ 'bi-file-earmark-pdf text-danger' if d.tipo_documento == 'pdf' else 'bi-file-earmark-word text-primary' }} fs-4"></i>
+                                <div>
+                                    <div class="fw-medium">{{ d.nombre_archivo }}</div>
+                                    <small class="text-secondary">{{ d.tamano_bytes | tamano_legible }} · {{ d.fecha_subida | fecha_es }}</small>
+                                </div>
+                            </div>
+                            <a href="{{ url_for('static', filename=d.url_archivo) }}" target="_blank"
+                               class="btn btn-light btn-sm fw-semibold">Abrir</a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-secondary small mb-0">Este proyecto no tiene documentos adjuntos.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== Columna lateral ========== -->
+    <div class="col-12 col-lg-4">
+
+        <!-- Moderación -->
+        <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-body p-4">
+                <h2 class="h6 fw-bold mb-3">Moderación</h2>
+
+                {% if p.estado == 'Pendiente' %}
+                    <form method="post" action="{{ url_for('admin_aprobar_proyecto', id=p.id_proyecto) }}"
+                          class="mb-3"
+                          data-confirmar="Se publicará «{{ p.titulo }}» y será visible para toda la comunidad."
+                          data-confirmar-titulo="¿Aprobar este proyecto?"
+                          data-confirmar-tipo="success"
+                          data-confirmar-boton="Sí, aprobar"
+                          data-confirmar-cargando="Aprobando...">
+                        <button class="btn btn-primary w-100 fw-semibold">
+                            <i class="bi bi-check2-circle"></i> Aprobar y publicar
+                        </button>
+                    </form>
+
+                    <form method="post" action="{{ url_for('admin_rechazar_proyecto', id=p.id_proyecto) }}"
+                          class="form-rechazar">
+                        <input type="hidden" name="volver" value="{{ volver_url }}">
+                        <label for="motivo" class="form-label small fw-semibold text-secondary">Motivo del rechazo</label>
+                        <textarea id="motivo" name="motivo" rows="3" maxlength="500"
+                                  class="form-control mb-1" placeholder="Explica qué debe corregir el estudiante"></textarea>
+                        <div class="text-end small text-secondary mb-2"><span id="contador">0</span>/500</div>
+                        <button class="btn btn-outline-danger w-100 fw-semibold">
+                            <i class="bi bi-x-circle"></i> Rechazar
+                        </button>
+                    </form>
+
+                {% elif p.estado == 'Rechazado' %}
+                    <p class="small text-secondary mb-1">Este proyecto fue rechazado por:</p>
+                    <div class="revisar-motivo">{{ p.motivo_rechazo or 'Sin motivo registrado.' }}</div>
+
+                {% elif p.estado == 'Publicado' %}
+                    <p class="small text-secondary mb-0">Este proyecto ya está publicado.</p>
+                {% else %}
+                    <p class="small text-secondary mb-0">El estudiante aún lo tiene en borrador.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Información -->
+        <div class="card border-0 shadow-sm rounded-4 mt-4">
+            <div class="card-body p-4">
+                <h2 class="h6 fw-bold mb-3">Información</h2>
+                <dl class="revisar-datos mb-0">
+                    <dt>Autor</dt>
+                    <dd>{{ p.autor or '—' }}<br><small class="text-secondary">{{ p.autor_correo }}</small></dd>
+                    <dt>Grado</dt>
+                    <dd>{{ p.grado }}</dd>
+                    <dt>Profesor a cargo</dt>
+                    <dd>{{ p.profesor_a_cargo }}</dd>
+                    <dt>Enviado</dt>
+                    <dd>{{ p.fecha_creacion | fecha_es }}</dd>
+                    <dt>Actividad</dt>
+                    <dd>{{ p.vistas_count }} vistas · {{ p.likes_count }} me gusta{% if p.calificacion %} · ★ {{ p.calificacion }}{% endif %}</dd>
+                </dl>
+            </div>
+        </div>
+
+        <!-- Equipo -->
+        {% if colaboradores %}
+        <div class="card border-0 shadow-sm rounded-4 mt-4">
+            <div class="card-body p-4">
+                <h2 class="h6 fw-bold mb-3">Equipo</h2>
+                <ul class="list-unstyled mb-0">
+                    {% for c in colaboradores %}
+                    <li class="d-flex justify-content-between small py-1">
+                        <span>{{ c.nombre_completo }}</span>
+                        <span class="text-secondary">{{ c.rol_en_equipo }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Reportes abiertos -->
+        {% if reportes %}
+        <div class="card border-0 shadow-sm rounded-4 mt-4 border-danger-subtle">
+            <div class="card-body p-4">
+                <h2 class="h6 fw-bold text-danger mb-3">Reportes abiertos ({{ reportes | length }})</h2>
+                <ul class="list-unstyled mb-0">
+                    {% for r in reportes %}
+                    <li class="small py-2 border-bottom">
+                        {{ r.motivo or 'Sin motivo' }}
+                        <div class="text-secondary">{{ r.reportado_por or 'Usuario eliminado' }} · {{ r.fecha | fecha_es }}</div>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/admin_modal.js') }}"></script>
+<script src="{{ url_for('static', filename='js/admin_revisar.js') }}"></script>
+
+{% endblock %}

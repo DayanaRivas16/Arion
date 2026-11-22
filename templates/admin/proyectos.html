@@ -1,11 +1,151 @@
 {% extends 'admin/admin_base.html' %}
 
-{% block title %}Proyectos{% endblock %}
+{% block title %}Proyectos - ARION Admin{% endblock %}
 
 {% block content %}
-<!-- Encabezado de la sección administrativa para consultar y administrar proyectos. -->
-<div class="page-head">
-    <h1>Gestión de Proyectos</h1>
-    <p class="sub">Consulta y administra los proyectos de la comunidad escolar.</p>
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin_proyectos.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin_modal.css') }}">
+
+<!-- Encabezado y buscador -->
+<div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3">
+    <div>
+        <h1 class="h3 fw-bold mb-1">Gestión de Proyectos</h1>
+        <p class="text-secondary mb-0">Modera, aprueba o rechaza los proyectos subidos por los estudiantes de la institución.</p>
+    </div>
+
+    <form method="get" action="{{ url_for('admin_proyectos') }}" class="proy-buscar">
+        {% if estado %}<input type="hidden" name="estado" value="{{ estado }}">{% endif %}
+        <i class="bi bi-search"></i>
+        <input type="search" name="q" value="{{ q }}" class="form-control"
+               placeholder="Buscar por título o autor" aria-label="Buscar proyectos">
+    </form>
 </div>
+
+<!-- Pestañas por estado -->
+{% set tabs = [('', 'Todos', conteos.todos),
+               ('Pendiente', 'Pendientes', conteos.pendientes),
+               ('Publicado', 'Publicados', conteos.publicados),
+               ('Rechazado', 'Rechazados', conteos.rechazados)] %}
+<div class="d-flex flex-wrap gap-2 pb-3 mb-3 border-bottom">
+    {% for valor, texto, n in tabs %}
+        <a href="{{ url_for('admin_proyectos', estado=valor or None, q=q or None) }}"
+           class="proy-tab {{ 'active' if estado == valor }}">{{ texto }} ({{ n }})</a>
+    {% endfor %}
+</div>
+
+{% if q %}
+    <p class="small text-secondary">
+        {{ total }} resultado{{ '' if total == 1 else 's' }} para «{{ q }}»
+        · <a href="{{ url_for('admin_proyectos', estado=estado or None) }}" class="text-decoration-none">Limpiar búsqueda</a>
+    </p>
+{% endif %}
+
+<!-- Lista -->
+{% set textos_estado = {'Publicado': 'Aprobado', 'Pendiente': 'Pendiente de revisión', 'Rechazado': 'Rechazado'} %}
+
+{% for p in proyectos %}
+<div class="card border-0 shadow-sm rounded-4 mb-3 proy-card">
+    <div class="card-body p-3 d-flex flex-wrap align-items-center gap-3">
+
+        <a href="{{ url_for('admin_revisar_proyecto', id=p.id_proyecto, volver=request.full_path) }}" class="proy-miniatura">
+            {% if p.imagen_portada %}
+                <img src="{{ url_for('static', filename=p.imagen_portada) }}" alt="">
+            {% else %}
+                <i class="bi bi-image text-secondary fs-3"></i>
+            {% endif %}
+        </a>
+
+        <div class="flex-grow-1" style="min-width: 220px;">
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <a href="{{ url_for('admin_revisar_proyecto', id=p.id_proyecto, volver=request.full_path) }}"
+                   class="fw-bold text-dark text-decoration-none proy-titulo">{{ p.titulo }}</a>
+                {% if p.es_destacado %}
+                    <span class="proy-etiqueta proy-destacado"><i class="bi bi-star-fill"></i> Destacado</span>
+                {% endif %}
+            </div>
+            <div class="small text-secondary mt-1">
+                Autor: {{ p.autor or '—' }} • Grado {{ p.grado }} • Enviado el {{ p.fecha_creacion | fecha_es }}
+            </div>
+            <div class="d-flex flex-wrap gap-2 mt-2">
+                <span class="proy-etiqueta proy-categoria">{{ p.categoria or 'Sin categoría' }}</span>
+                <span class="proy-etiqueta proy-estado-{{ p.estado | lower }}">{{ textos_estado[p.estado] }}</span>
+            </div>
+        </div>
+
+        <!-- Acciones según el estado -->
+        <div class="d-flex flex-wrap gap-2 ms-auto">
+
+            {% if p.estado == 'Pendiente' %}
+                <form method="post" action="{{ url_for('admin_aprobar_proyecto', id=p.id_proyecto) }}"
+                      data-confirmar="Se publicará «{{ p.titulo }}» y será visible para toda la comunidad."
+                      data-confirmar-titulo="¿Aprobar este proyecto?"
+                      data-confirmar-tipo="success"
+                      data-confirmar-boton="Sí, aprobar"
+                      data-confirmar-cargando="Aprobando...">
+                    <button class="btn btn-primary btn-sm fw-semibold px-3">Aprobar</button>
+                </form>
+                <a href="{{ url_for('admin_revisar_proyecto', id=p.id_proyecto, volver=request.full_path) }}#motivo"
+                   class="proy-btn proy-btn-rojo">Rechazar</a>
+
+            {% else %}
+                <a href="{{ url_for('admin_revisar_proyecto', id=p.id_proyecto, volver=request.full_path) }}"
+                   class="proy-btn proy-btn-gris">Ver detalles</a>
+
+                {% if p.estado == 'Publicado' %}
+                    <form method="post" action="{{ url_for('admin_destacar_proyecto', id=p.id_proyecto) }}"
+                          data-confirmar="{{ ('«' ~ p.titulo ~ '» dejará de aparecer entre los proyectos destacados.') if p.es_destacado else ('«' ~ p.titulo ~ '» aparecerá entre los proyectos destacados de la página de inicio.') }}"
+                          data-confirmar-titulo="{{ '¿Quitar destacado?' if p.es_destacado else '¿Destacar este proyecto?' }}"
+                          data-confirmar-tipo="success"
+                          data-confirmar-boton="{{ 'Sí, quitar' if p.es_destacado else 'Sí, destacar' }}">
+                        <input type="hidden" name="valor" value="{{ 0 if p.es_destacado else 1 }}">
+                        <button class="proy-btn proy-btn-amarillo">{{ 'Quitar destacado' if p.es_destacado else 'Destacar' }}</button>
+                    </form>
+                {% endif %}
+
+                <form method="post" action="{{ url_for('admin_eliminar_proyecto', id=p.id_proyecto) }}"
+                      data-confirmar="Se eliminará «{{ p.titulo }}» con sus documentos, me gusta y valoraciones. Esta acción no se puede deshacer."
+                      data-confirmar-titulo="¿Eliminar este proyecto?"
+                      data-confirmar-tipo="danger"
+                      data-confirmar-boton="Sí, eliminar"
+                      data-confirmar-cargando="Eliminando...">
+                    <button class="proy-btn proy-btn-rojo">Eliminar</button>
+                </form>
+            {% endif %}
+
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="text-center text-secondary py-5">
+    <i class="bi bi-inbox fs-1"></i>
+    <p class="mt-2 mb-0">
+        {% if q %}No encontramos proyectos con esa búsqueda.{% else %}No hay proyectos en esta categoría.{% endif %}
+    </p>
+</div>
+{% endfor %}
+
+<!-- Paginación -->
+{% if total_paginas > 1 %}
+<nav class="d-flex justify-content-center gap-1 mt-4" aria-label="Paginación">
+    {% if pagina > 1 %}
+        <a class="proy-pagina" href="{{ url_for('admin_proyectos', estado=estado or None, q=q or None, pagina=pagina - 1) }}">
+            <i class="bi bi-chevron-left"></i>
+        </a>
+    {% endif %}
+    {% for n in range(1, total_paginas + 1) %}
+        <a class="proy-pagina {{ 'active' if n == pagina }}"
+           href="{{ url_for('admin_proyectos', estado=estado or None, q=q or None, pagina=n) }}">{{ n }}</a>
+    {% endfor %}
+    {% if pagina < total_paginas %}
+        <a class="proy-pagina" href="{{ url_for('admin_proyectos', estado=estado or None, q=q or None, pagina=pagina + 1) }}">
+            <i class="bi bi-chevron-right"></i>
+        </a>
+    {% endif %}
+</nav>
+{% endif %}
+
+<script src="{{ url_for('static', filename='js/admin_modal.js') }}"></script>
+<script src="{{ url_for('static', filename='js/admin_proyectos.js') }}"></script>
+
 {% endblock %}

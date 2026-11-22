@@ -6,10 +6,11 @@ from psycopg2.extras import RealDictCursor
 from authlib.integrations.flask_client import OAuth
 from flask_mail import Mail, Message
 import os
+import math
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import uuid
-
+from urllib.parse import urlsplit
 load_dotenv()
 
 app = Flask(__name__)
@@ -125,19 +126,291 @@ def api_seguro(f):
 @app.route('/admin/')
 @admin_required
 def admin_dashboard():
-    # Mientras el dashboard no esté listo, el panel abre directo en Usuarios.
-    # Cuando exista su plantilla, cambiar esta línea por:
-    #     return render_template('admin/dashboard.html', ...)
-    return redirect(url_for('admin_usuarios'))
+    stats = consultar("""
+        SELECT
+            (SELECT COUNT(*) FROM proyectos) AS total_proyectos,
+            (SELECT COUNT(*) FROM proyectos
+              WHERE fecha_creacion >= date_trunc('month', now())) AS creados_este_mes,
+            (SELECT COUNT(*) FROM proyectos
+              WHERE fecha_creacion >= date_trunc('month', now()) - interval '1 month'
+                AND fecha_creacion <  date_trunc('month', now())) AS creados_mes_anterior,
+            (SELECT COUNT(*) FROM usuarios u
+               JOIN tipos_usuario t ON t.id_tipo = u.id_tipo
+              WHERE u.activo AND LEFT(LOWER(t.nombre_tipo), 5) = 'estud') AS estudiantes,
+            (SELECT COUNT(*) FROM proyectos WHERE estado = 'Pendiente') AS pendientes,
+            (SELECT COUNT(*) FROM reportes_proyecto WHERE NOT resuelto) AS reportes
+    """, uno=True)
+
+    # Variación mensual; si el mes pasado no hubo proyectos no hay base para el porcentaje
+    anterior = stats['creados_mes_anterior']
+    variacion = None
+    if anterior:
+        variacion = round((stats['creados_este_mes'] - anterior) / anterior * 100)
+
+    pendientes = consultar("""
+        SELECT p.id_proyecto, p.titulo, p.grado, p.fecha_creacion,
+               u.nombre_completo AS autor,
+               c.nombre_categoria AS categoria
+        FROM proyectos p
+        JOIN usuarios u ON u.id_usuario = p.id_usuario
+        LEFT JOIN categorias c ON c.id_categoria = p.id_categoria
+        WHERE p.estado = 'Pendiente'
+        ORDER BY p.fecha_creacion DESC
+        LIMIT 5
+    """)
+
+    return render_template('admin/dashboard.html',
+                            stats=stats, variacion=variacion, pendientes=pendientes)
 
 
-# Rutas de las secciones que aparecen en la barra de navegación del administrador.
-# Cada sección usa la misma protección admin_required que impide el acceso a usuarios normales.
+# =====================================================================
+# PANEL ADMIN - APROBAR (lo usa el dashboard y la lista de proyectos pendientes)
+# =====================================================================
+@app.route('/admin/proyectos/<int:id>/aprobar', methods=['POST'])
+@admin_required
+def admin_aprobar_proyecto(id):
+    filas = ejecutar("""
+        UPDATE proyectos
+        SET estado = 'Publicado',
+            motivo_rechazo = NULL
+        WHERE id_proyecto = %s AND estado = 'Pendiente'
+    """, (id,))
+
+    if filas:
+        flash('Proyecto aprobado y publicado.', 'success')
+    else:
+        flash('Ese proyecto ya no está pendiente.', 'warning')
+
+    # Vuelve a la página desde donde se pulsó el botón
+    return redirect(request.referrer or url_for('admin_dashboard'))
+
+@app.template_filter('tamano_legible')
+def tamano_legible(b):
+    # 4977015 -> "4.7 MB"
+    if not b:
+        return '—'
+    for unidad in ('B', 'KB', 'MB', 'GB'):
+        if b < 1024 or unidad == 'GB':
+            return f"{b:.0f} {unidad}" if unidad == 'B' else f"{b:.1f} {unidad}"
+        b /= 1024
+
+
+# =====================================================================
+# PANEL ADMIN - FICHA DE REVISIÓN DE UN PROYECTO
+# =====================================================================
+def destino_volver():
+    """A dónde regresa la ficha: la página desde la que se abrió (viene en ?volver=).
+    Solo se aceptan rutas internas del panel; cualquier otra cosa vuelve al dashboard."""
+    volver = request.values.get('volver', '')
+    if volver.startswith('/admin') and not volver.startswith('//'):
+        return volver
+    return url_for('admin_dashboard')
+
+@app.route('/admin/proyectos/<int:id>')
+@admin_required
+def admin_revisar_proyecto(id):
+    proyecto = consultar("""
+        SELECT p.*,
+               u.nombre_completo AS autor,
+               u.correo_usuario  AS autor_correo,
+               c.nombre_categoria AS categoria
+        FROM proyectos p
+        LEFT JOIN usuarios u ON u.id_usuario = p.id_usuario
+        LEFT JOIN categorias c ON c.id_categoria = p.id_categoria
+        WHERE p.id_proyecto = %s
+    """, (id,), uno=True)
+
+    if not proyecto:
+        abort(404)
+
+    etiquetas = consultar("""
+        SELECT e.nombre_etiqueta
+        FROM proyectos_etiquetas pe
+        JOIN etiquetas e ON e.id_etiqueta = pe.id_etiqueta
+        WHERE pe.id_proyecto = %s
+        ORDER BY e.nombre_etiqueta
+    """, (id,))
+
+    documentos = consultar("""
+        SELECT nombre_archivo, url_archivo, tipo_documento, tamano_bytes, fecha_subida
+        FROM documentos_proyecto
+        WHERE id_proyecto = %s
+        ORDER BY fecha_subida
+    """, (id,))
+
+    colaboradores = consultar("""
+        SELECT u.nombre_completo, pc.rol_en_equipo
+        FROM proyecto_colaboradores pc
+        JOIN usuarios u ON u.id_usuario = pc.id_usuario
+        WHERE pc.id_proyecto = %s
+        ORDER BY (pc.rol_en_equipo = 'Autor') DESC, u.nombre_completo
+    """, (id,))
+
+    reportes = consultar("""
+        SELECT r.motivo, r.fecha, u.nombre_completo AS reportado_por
+        FROM reportes_proyecto r
+        LEFT JOIN usuarios u ON u.id_usuario = r.id_usuario
+        WHERE r.id_proyecto = %s AND NOT r.resuelto
+        ORDER BY r.fecha DESC
+    """, (id,))
+
+    volver_url = destino_volver()
+    if urlsplit(volver_url).path == '/admin/proyectos':
+        volver_texto = 'Volver a proyectos'
+    else:
+        volver_texto = 'Volver al dashboard'
+
+    return render_template('admin/revisar_proyecto.html',
+                            p=proyecto, etiquetas=etiquetas, documentos=documentos,
+                            colaboradores=colaboradores, reportes=reportes,
+                            volver_url=volver_url, volver_texto=volver_texto)
+
+
+@app.route('/admin/proyectos/<int:id>/rechazar', methods=['POST'])
+@admin_required
+def admin_rechazar_proyecto(id):
+    motivo = (request.form.get('motivo') or '').strip()
+    volver = destino_volver() 
+
+    # El estudiante necesita saber qué corregir, así que el motivo es obligatorio
+    if len(motivo) < 10:
+        flash('Escribe un motivo de rechazo (mínimo 10 caracteres).', 'warning')
+        return redirect(url_for('admin_revisar_proyecto', id=id, volver=volver)) 
+
+    filas = ejecutar("""
+        UPDATE proyectos
+        SET estado = 'Rechazado', motivo_rechazo = %s
+        WHERE id_proyecto = %s AND estado = 'Pendiente'
+    """, (motivo, id))
+
+    if filas:
+        flash('Proyecto rechazado.', 'success')
+    else:
+        flash('Ese proyecto ya no está pendiente.', 'warning')
+
+    return redirect(volver) 
+
+# Los borradores son privados del estudiante, el panel solo modera estos tres
+ESTADOS_MODERABLES = ('Pendiente', 'Publicado', 'Rechazado')
+PROYECTOS_POR_PAGINA = 10
+
+def borrar_archivo_subido(ruta_relativa):
+    """Borra un archivo guardado en static/ (portadas y documentos).
+    Solo toca rutas que queden dentro de static para no borrar algo ajeno por error."""
+    if not ruta_relativa:
+        return
+    base = os.path.abspath(app.static_folder)
+    destino = os.path.abspath(os.path.join(base, ruta_relativa))
+    if destino.startswith(base + os.sep) and os.path.isfile(destino):
+        try:
+            os.remove(destino)
+        except OSError:
+            app.logger.warning(f'No se pudo borrar el archivo {destino}')
+
+# =====================================================================
+# PANEL ADMIN - GESTIÓN DE PROYECTOS
+# =====================================================================
 @app.route('/admin/proyectos')
 @admin_required
 def admin_proyectos():
-    return render_template('admin/proyectos.html')
+    estado = request.args.get('estado', '')
+    if estado not in ESTADOS_MODERABLES:
+        estado = ''
+    q = (request.args.get('q') or '').strip()
+    pagina = max(request.args.get('pagina', 1, type=int), 1)
 
+    # Los números de las pestañas no dependen del filtro ni de la búsqueda
+    conteos = consultar("""
+        SELECT COUNT(*) FILTER (WHERE estado IN ('Pendiente', 'Publicado', 'Rechazado')) AS todos,
+               COUNT(*) FILTER (WHERE estado = 'Pendiente') AS pendientes,
+               COUNT(*) FILTER (WHERE estado = 'Publicado') AS publicados,
+               COUNT(*) FILTER (WHERE estado = 'Rechazado') AS rechazados
+        FROM proyectos
+    """, uno=True)
+
+    # El WHERE se arma solo con texto fijo; lo que escribe el usuario va siempre en params
+    condiciones = ["p.estado IN ('Pendiente', 'Publicado', 'Rechazado')"]
+    params = []
+    if estado:
+        condiciones.append("p.estado = %s")
+        params.append(estado)
+    if q:
+        condiciones.append("(p.titulo ILIKE %s OR u.nombre_completo ILIKE %s)")
+        params += [f'%{q}%', f'%{q}%']
+    where = ' AND '.join(condiciones)
+
+    total = consultar(f"""
+        SELECT COUNT(*) AS n
+        FROM proyectos p
+        LEFT JOIN usuarios u ON u.id_usuario = p.id_usuario
+        WHERE {where}
+    """, params, uno=True)['n']
+
+    total_paginas = max(math.ceil(total / PROYECTOS_POR_PAGINA), 1)
+    pagina = min(pagina, total_paginas)
+
+    proyectos = consultar(f"""
+        SELECT p.id_proyecto, p.titulo, p.imagen_portada, p.grado, p.estado,
+               p.es_destacado, p.fecha_creacion,
+               u.nombre_completo AS autor,
+               c.nombre_categoria AS categoria
+        FROM proyectos p
+        LEFT JOIN usuarios u ON u.id_usuario = p.id_usuario
+        LEFT JOIN categorias c ON c.id_categoria = p.id_categoria
+        WHERE {where}
+        ORDER BY (p.estado = 'Pendiente') DESC, p.fecha_creacion DESC
+        LIMIT %s OFFSET %s
+    """, params + [PROYECTOS_POR_PAGINA, (pagina - 1) * PROYECTOS_POR_PAGINA])
+
+    return render_template('admin/proyectos.html',
+                           proyectos=proyectos, conteos=conteos, estado=estado, q=q,
+                           pagina=pagina, total_paginas=total_paginas, total=total)
+
+
+@app.route('/admin/proyectos/<int:id>/destacar', methods=['POST'])
+@admin_required
+def admin_destacar_proyecto(id):
+    destacar = request.form.get('valor') == '1'
+
+    # Solo se pueden destacar proyectos ya publicados
+    filas = ejecutar("""
+        UPDATE proyectos
+        SET es_destacado = %s
+        WHERE id_proyecto = %s AND estado = 'Publicado'
+    """, (destacar, id))
+
+    if not filas:
+        flash('Solo los proyectos publicados pueden destacarse.', 'warning')
+    elif destacar:
+        flash('Proyecto destacado.', 'success')
+    else:
+        flash('Se quitó el destacado del proyecto.', 'success')
+
+    return redirect(request.referrer or url_for('admin_proyectos'))
+
+
+@app.route('/admin/proyectos/<int:id>/eliminar', methods=['POST'])
+@admin_required
+def admin_eliminar_proyecto(id):
+    # Se anotan los archivos antes de borrar, porque el DELETE se lleva
+    # también las filas de documentos_proyecto (ON DELETE CASCADE)
+    archivos = consultar("""
+        SELECT url_archivo AS ruta FROM documentos_proyecto WHERE id_proyecto = %s
+        UNION ALL
+        SELECT imagen_portada FROM proyectos
+        WHERE id_proyecto = %s AND imagen_portada IS NOT NULL
+    """, (id, id))
+
+    filas = ejecutar("DELETE FROM proyectos WHERE id_proyecto = %s", (id,))
+
+    if filas:
+        for a in archivos:
+            borrar_archivo_subido(a['ruta'])
+        flash('Proyecto eliminado.', 'success')
+    else:
+        flash('Ese proyecto ya no existe.', 'warning')
+
+    return redirect(request.referrer or url_for('admin_proyectos'))
 
 @app.route('/admin/reportes')
 @admin_required
@@ -245,10 +518,256 @@ def admin_reportes():
     )
 
 
+SECCIONES_CONFIG = ('general', 'categorias', 'almacenamiento', 'permisos')
+
+PERMISOS_ACCIONES = [
+    ('subir',     'Subir y editar proyectos propios'),
+    ('aprobar',   'Aprobar o rechazar proyectos escolares'),
+    ('gestionar', 'Gestionar usuarios y cuentas'),
+]
+PERMISOS_ROLES = [
+    ('estudiante',    'Estudiante'),
+    ('docente',       'Docente'),
+    ('administrador', 'Administrador'),
+]
+# Celdas de la matriz que no se pueden cambiar: el administrador siempre conserva todo
+# (así nadie se queda sin acceso al panel), el estudiante nunca aprueba y solo el
+# administrador gestiona usuarios.
+PERMISOS_FIJOS = {
+    ('aprobar', 'estudiante'), ('gestionar', 'estudiante'), ('gestionar', 'docente'),
+    ('subir', 'administrador'), ('aprobar', 'administrador'), ('gestionar', 'administrador'),
+}
+
+# ---------------------------------------------------------------------
+# Helpers de configuración
+# ---------------------------------------------------------------------
+def leer_config():
+    """Lee la tabla configuracion (clave/valor) y devuelve cada ajuste ya con su tipo."""
+    c = {f['clave']: f['valor'] for f in consultar("SELECT clave, valor FROM configuracion")}
+
+    def entero(clave, defecto):
+        try:
+            return int(c.get(clave, defecto))
+        except (TypeError, ValueError):
+            return defecto
+
+    def booleano(clave, defecto=True):
+        return c.get(clave, 'true' if defecto else 'false') == 'true'
+
+    return {
+        'institucion': c.get('institucion', ''),
+        'anio_lectivo': c.get('anio_lectivo', ''),
+        'max_mb': entero('max_mb', 10),
+        'moderacion': booleano('moderacion'),
+        'permite_pdf': booleano('permite_pdf'),
+        'permite_docx': booleano('permite_docx'),
+        'almacenamiento_total_gb': entero('almacenamiento_total_gb', 20),
+    }
+
+
+def ejecutar_lote(sentencias):
+    """Corre varias sentencias en una sola transacción: o se guardan todas o ninguna."""
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            for sql, params in sentencias:
+                cur.execute(sql, params)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def guardar_config(pares):
+    """Guarda ajustes {clave: valor}. Si la clave no existe la crea."""
+    ejecutar_lote([
+        ("""INSERT INTO configuracion (clave, valor) VALUES (%s, %s)
+            ON CONFLICT (clave) DO UPDATE SET valor = EXCLUDED.valor""",
+         (clave, 'true' if valor is True else 'false' if valor is False else str(valor)))
+        for clave, valor in pares.items()
+    ])
+
+
+def bytes_en_carpeta(ruta):
+    total = 0
+    for raiz, _, archivos in os.walk(ruta):
+        for nombre in archivos:
+            try:
+                total += os.path.getsize(os.path.join(raiz, nombre))
+            except OSError:
+                pass
+    return total
+
+
+def volver_config(seccion):
+    return redirect(url_for('admin_configuracion', seccion=seccion))
+
+
+# =====================================================================
+# PANEL ADMIN - CONFIGURACIÓN (pantalla)
+# =====================================================================
 @app.route('/admin/configuracion')
 @admin_required
 def admin_configuracion():
-    return render_template('admin/configuracion.html')
+    seccion = request.args.get('seccion', 'general')
+    if seccion not in SECCIONES_CONFIG:
+        seccion = 'general'
+
+    config = leer_config()
+    datos = {}
+
+    if seccion == 'categorias':
+        datos['categorias'] = consultar("""
+            SELECT c.id_categoria, c.nombre_categoria, c.descripcion,
+                    COUNT(p.id_proyecto) AS proyectos
+            FROM categorias c
+            LEFT JOIN proyectos p ON p.id_categoria = c.id_categoria
+            GROUP BY c.id_categoria
+            ORDER BY c.nombre_categoria
+        """)
+
+    elif seccion == 'almacenamiento':
+        # Se mide lo que realmente hay en disco (portadas y documentos), no una cifra guardada
+        carpeta = os.path.join(app.static_folder, 'uploads')
+        portadas = bytes_en_carpeta(os.path.join(carpeta, 'proyectos'))
+        documentos = bytes_en_carpeta(os.path.join(carpeta, 'documentos'))
+        usado = portadas + documentos
+        total = config['almacenamiento_total_gb'] * 1024 ** 3
+        datos.update(usado=usado, total=total, portadas=portadas, documentos=documentos,
+                     porcentaje=min(round(usado * 100 / total, 1), 100) if total else 0)
+
+    elif seccion == 'permisos':
+        filas = consultar("SELECT accion, rol, permitido FROM permisos_rol")
+        datos['marcados'] = {f"{f['accion']}__{f['rol']}": f['permitido'] for f in filas}
+        datos['acciones'] = PERMISOS_ACCIONES
+        datos['roles'] = PERMISOS_ROLES
+        datos['fijos'] = {f"{a}__{r}" for a, r in PERMISOS_FIJOS}
+
+    return render_template('admin/configuracion.html', seccion=seccion, config=config, **datos)
+
+
+# ---------------------------------------------------------------------
+# Parámetros generales
+# ---------------------------------------------------------------------
+@app.route('/admin/configuracion/general', methods=['POST'])
+@admin_required
+def admin_guardar_general():
+    institucion = (request.form.get('institucion') or '').strip()
+    anio = (request.form.get('anio_lectivo') or '').strip()
+    max_mb = request.form.get('max_mb', type=int)
+
+    if not institucion or len(institucion) > 150:
+        flash('El nombre de la institución es obligatorio (máximo 150 caracteres).', 'warning')
+        return volver_config('general')
+    if not anio or len(anio) > 50:
+        flash('El año lectivo es obligatorio (máximo 50 caracteres).', 'warning')
+        return volver_config('general')
+    # El servidor acepta 16 MB por envío (MAX_CONTENT_LENGTH), así que un archivo no puede pasar de ahí
+    if max_mb is None or not 1 <= max_mb <= 15:
+        flash('El tamaño máximo por archivo debe estar entre 1 y 15 MB.', 'warning')
+        return volver_config('general')
+
+    guardar_config({
+        'institucion': institucion,
+        'anio_lectivo': anio,
+        'max_mb': max_mb,
+        'moderacion': request.form.get('moderacion') == 'on',
+    })
+    flash('Parámetros generales guardados.', 'success')
+    return volver_config('general')
+
+
+# ---------------------------------------------------------------------
+# Categorías
+# ---------------------------------------------------------------------
+@app.route('/admin/configuracion/categorias/crear', methods=['POST'])
+@admin_required
+def admin_crear_categoria():
+    nombre = (request.form.get('nombre') or '').strip()
+    descripcion = (request.form.get('descripcion') or '').strip()[:300] or None
+
+    if not nombre or len(nombre) > 100:
+        flash('El nombre de la categoría es obligatorio (máximo 100 caracteres).', 'warning')
+        return volver_config('categorias')
+
+    # La BD ya impide nombres repetidos, pero así se compara sin importar mayúsculas
+    existe = consultar("SELECT 1 FROM categorias WHERE LOWER(BTRIM(nombre_categoria)) = LOWER(%s)",
+                        (nombre,), uno=True)
+    if existe:
+        flash(f'Ya existe una categoría llamada «{nombre}».', 'warning')
+        return volver_config('categorias')
+
+    ejecutar("""INSERT INTO categorias (nombre_categoria, descripcion)
+                VALUES (%s, %s)""", (nombre, descripcion))
+    flash(f'Categoría «{nombre}» creada.', 'success')
+    return volver_config('categorias')
+
+
+@app.route('/admin/configuracion/categorias/<int:id>/eliminar', methods=['POST'])
+@admin_required
+def admin_eliminar_categoria(id):
+    cat = consultar("""
+        SELECT nombre_categoria,
+               (SELECT COUNT(*) FROM proyectos WHERE id_categoria = %s) AS proyectos,
+               (SELECT COUNT(*) FROM categorias) AS total
+        FROM categorias WHERE id_categoria = %s
+    """, (id, id), uno=True)
+
+    if not cat:
+        flash('Esa categoría ya no existe.', 'warning')
+        return volver_config('categorias')
+    # Al subir un proyecto es obligatorio elegir categoría, sin ninguna nadie podría subir
+    if cat['total'] <= 1:
+        flash('No puedes eliminar la única categoría que queda.', 'warning')
+        return volver_config('categorias')
+
+    ejecutar("DELETE FROM categorias WHERE id_categoria = %s", (id,))
+    mensaje = f"Categoría «{cat['nombre_categoria']}» eliminada."
+    if cat['proyectos']:
+        mensaje += f" {cat['proyectos']} proyecto(s) quedaron sin categoría."
+    flash(mensaje, 'success')
+    return volver_config('categorias')
+
+
+# ---------------------------------------------------------------------
+# Almacenamiento y archivos
+# ---------------------------------------------------------------------
+@app.route('/admin/configuracion/almacenamiento', methods=['POST'])
+@admin_required
+def admin_guardar_almacenamiento():
+    permite_pdf = request.form.get('permite_pdf') == 'on'
+    permite_docx = request.form.get('permite_docx') == 'on'
+
+    if not (permite_pdf or permite_docx):
+        flash('Debe quedar al menos un formato permitido.', 'warning')
+        return volver_config('almacenamiento')
+
+    guardar_config({'permite_pdf': permite_pdf, 'permite_docx': permite_docx})
+    flash('Formatos permitidos guardados.', 'success')
+    return volver_config('almacenamiento')
+
+
+# ---------------------------------------------------------------------
+# Permisos de roles
+# ---------------------------------------------------------------------
+@app.route('/admin/configuracion/permisos', methods=['POST'])
+@admin_required
+def admin_guardar_permisos():
+    sentencias = []
+    for accion, _ in PERMISOS_ACCIONES:
+        for rol, _ in PERMISOS_ROLES:
+            if (accion, rol) in PERMISOS_FIJOS:
+                continue            # las celdas fijas no se tocan aunque alguien manipule el formulario
+            marcado = f'{accion}__{rol}' in request.form
+            sentencias.append((
+                "UPDATE permisos_rol SET permitido = %s WHERE accion = %s AND rol = %s",
+                (marcado, accion, rol)))
+
+    ejecutar_lote(sentencias)
+    flash('Permisos guardados.', 'success')
+    return volver_config('permisos')
 
 
 # ---------------------------------------------------------------------
@@ -459,6 +978,7 @@ def test_db():
 # =====================================================================
 # CONTROLES DE ACCESO 
 # =====================================================================
+
 def login_required(f): #login required es un decorador que protege rutas que requieren autenticación
     @wraps(f) # el wraps preserva la información de la función original
     def decorated_function(*args, **kwargs):
@@ -664,6 +1184,74 @@ def google_callback(): #maneja la respuesta de Google después de que el usuario
         flash('No fue posible iniciar sesión con Google.', 'error')
         return redirect(url_for('login'))
 
+MESES_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun',
+            'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+
+
+@app.template_filter('fecha_es')
+def fecha_es(valor):
+    # 25 Oct 2026 (strftime sale en inglés, por eso se arma a mano)
+    if not valor:
+        return '—'
+    return f"{valor.day:02d} {MESES_ES[valor.month - 1].capitalize()} {valor.year}"
+
+
+def admin_required(f):
+    """Solo deja pasar a usuarios activos con rol administrador.
+    Se consulta la BD en cada petición para que un cambio de rol aplique al instante."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Por favor, inicia sesión para acceder a esta página.', 'warning')
+            return redirect(url_for('login'))
+
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT 1
+                    FROM usuarios u
+                    JOIN tipos_usuario t ON t.id_tipo = u.id_tipo
+                    WHERE u.id_usuario = %s
+                      AND u.activo
+                      AND LEFT(LOWER(t.nombre_tipo), 5) = 'admin'
+                """, (session['user_id'],))
+                es_admin = cur.fetchone()
+        finally:
+            conn.close()
+
+        if not es_admin:
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated
+
+
+def consultar(sql, params=None, uno=False):
+    """SELECT rápido que devuelve dicts (una fila si uno=True, lista si no)."""
+    conn = get_db_connection()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(sql, params)
+            return cur.fetchone() if uno else cur.fetchall()
+    finally:
+        conn.close()
+
+
+def ejecutar(sql, params=None):
+    """INSERT/UPDATE/DELETE con commit. Devuelve cuántas filas afectó."""
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql, params)
+            filas = cur.rowcount
+        conn.commit()
+        return filas
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
 
 # =====================================================================
 # RUTAS PROTEGIDAS 
@@ -795,10 +1383,9 @@ def explorar():
 
     return render_template('explorar_proyectos.html', proyectos=proyectos, autores=autores)
 
-@app.route('/acerca')
-def acerca():
-    return render_template('acerca.html')
-
+@app.route('/acerca-de')
+def acerca_de():
+    return render_template('acerca_de.html')
 
 # ==========================================================
 # GUARDAR ETIQUETAS DEL PROYECTO

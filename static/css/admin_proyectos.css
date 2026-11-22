@@ -1,0 +1,120 @@
+/* Gestión de proyectos (panel admin) */
+
+/* Buscador */
+.proy-buscar {
+    position: relative;
+    width: 100%;
+    max-width: 300px;
+}
+.proy-buscar i {
+    position: absolute;
+    left: 0.9rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+    pointer-events: none;
+}
+.proy-buscar input {
+    padding-left: 2.4rem;
+    border-radius: 999px;
+    background-color: #fff;
+}
+
+/* Pestañas de estado */
+.proy-tab {
+    padding: 0.4rem 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 999px;
+    background-color: #fff;
+    color: #475569;
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background-color 0.15s, color 0.15s;
+}
+.proy-tab:hover {
+    background-color: #f1f5f9;
+    color: #0f172a;
+}
+.proy-tab.active {
+    background-color: #2563eb;
+    border-color: #2563eb;
+    color: #fff;
+}
+
+/* Tarjeta de proyecto */
+.proy-card {
+    transition: box-shadow 0.2s ease;
+}
+.proy-card:hover {
+    box-shadow: 0 0.5rem 1rem rgba(15, 23, 42, 0.08) !important;
+}
+.proy-titulo:hover {
+    color: #2563eb !important;
+}
+
+.proy-miniatura {
+    width: 72px;
+    height: 60px;
+    border-radius: 0.6rem;
+    overflow: hidden;
+    background-color: #f1f5f9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.proy-miniatura img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Etiquetas pequeñas */
+.proy-etiqueta {
+    display: inline-block;
+    padding: 0.15rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+.proy-destacado        { background-color: #fef3c7; color: #b45309; }
+.proy-categoria        { background-color: #f1f5f9; color: #475569; }
+.proy-estado-publicado { background-color: #dcfce7; color: #15803d; }
+.proy-estado-pendiente { background-color: #ffedd5; color: #c2410c; }
+.proy-estado-rechazado { background-color: #fee2e2; color: #b91c1c; }
+
+/* Botones de acción */
+.proy-btn {
+    display: inline-block;
+    padding: 0.3rem 0.9rem;
+    border: 0;
+    border-radius: 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    transition: filter 0.15s;
+}
+.proy-btn:hover          { filter: brightness(0.95); }
+.proy-btn-gris           { background-color: #f1f5f9; color: #334155; }
+.proy-btn-amarillo       { background-color: #fef3c7; color: #b45309; }
+.proy-btn-rojo           { background-color: #fee2e2; color: #dc2626; }
+
+/* Paginación */
+.proy-pagina {
+    min-width: 36px;
+    height: 36px;
+    padding: 0 0.6rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    background-color: #fff;
+    color: #475569;
+    font-size: 0.875rem;
+    text-decoration: none;
+}
+.proy-pagina:hover  { background-color: #f1f5f9; }
+.proy-pagina.active { background-color: #2563eb; border-color: #2563eb; color: #fff; }

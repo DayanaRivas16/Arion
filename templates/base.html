@@ -81,8 +81,8 @@
                     </li>
                     {% endif %}
                     <li class="nav-item">
-                        <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'acerca' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
-                        href="{{ url_for('acerca') }}">Acerca de</a>
+                        <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'acerca_de' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
+                        href="{{ url_for('acerca_de') }}">Acerca de</a>
                     </li>
                 </ul>
             </div>
@@ -101,6 +101,23 @@
                 {% endfor %}
             {% endif %}
         {% endwith %}
+    </div>
+
+        <!-- MODAL PARA AMPLIAR IMÁGENES -->
+    <div class="modal fade" id="imgModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content bg-transparent border-0">
+                <div class="modal-body p-0 text-center position-relative">
+                    <button type="button"
+                            class="btn-close bg-white rounded-circle p-2 position-absolute top-0 end-0 m-3 shadow"
+                            style="z-index: 5;"
+                            data-bs-dismiss="modal"
+                            aria-label="Cerrar"></button>
+                    <img id="imgModalSrc" src="" alt="" class="img-fluid rounded-4 shadow">
+                    <p id="imgModalCaption" class="text-white fw-semibold mt-3 mb-0"></p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>

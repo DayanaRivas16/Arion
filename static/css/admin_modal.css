@@ -1,0 +1,47 @@
+/* Modal de confirmación del panel admin */
+
+.confirmar-modal {
+    overflow: hidden;
+}
+
+/* Fondo desenfocado detrás del modal */
+.modal-backdrop.show {
+    backdrop-filter: blur(3px);
+    background-color: rgba(15, 23, 42, 0.45);
+    opacity: 1;
+}
+
+/* Círculo del ícono */
+.confirmar-icono {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+}
+.confirmar-icono.confirmar-success {
+    background-color: rgba(25, 135, 84, 0.12);
+    color: #198754;
+}
+.confirmar-icono.confirmar-danger {
+    background-color: rgba(220, 53, 69, 0.12);
+    color: #dc3545;
+}
+
+/* Pequeña entrada con rebote al abrir */
+.modal.fade .modal-dialog {
+    transform: scale(0.92) translateY(10px);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+}
+.modal.show .modal-dialog {
+    transform: none;
+}
+
+.confirmar-modal .btn {
+    transition: transform 0.1s ease;
+}
+.confirmar-modal .btn:active {
+    transform: scale(0.98);
+}

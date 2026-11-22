@@ -1,0 +1,35 @@
+/* Ficha de revisión de proyecto (panel admin) */
+
+.revisar-portada {
+    width: 100%;
+    max-height: 320px;
+    object-fit: cover;
+}
+
+/* Respeta los saltos de línea que escribió el estudiante */
+.revisar-descripcion {
+    white-space: pre-line;
+    line-height: 1.7;
+}
+
+.revisar-motivo {
+    background-color: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+    white-space: pre-line;
+}
+
+/* Lista de datos: etiqueta pequeña arriba, valor abajo */
+.revisar-datos dt {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748b;
+    font-weight: 600;
+}
+.revisar-datos dd {
+    margin-bottom: 0.9rem;
+}

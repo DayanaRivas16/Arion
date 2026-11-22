@@ -1,0 +1,160 @@
+/* Configuración del sistema (panel admin) */
+
+/* Menú lateral */
+.cfg-menu {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.65rem 0.9rem;
+    border-radius: 0.7rem;
+    color: #475569;
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background-color 0.15s, color 0.15s;
+}
+.cfg-menu:hover {
+    background-color: #f1f5f9;
+    color: #0f172a;
+}
+.cfg-menu.active {
+    background-color: rgba(37, 99, 235, 0.1);
+    color: #2563eb;
+}
+@media (max-width: 991.98px) {
+    /* En pantallas pequeñas el menú pasa a ser una fila desplazable */
+    .cfg-menu span { display: none; }
+    .cfg-menu.active span { display: inline; }
+}
+
+/* Títulos y etiquetas */
+.cfg-titulo {
+    font-size: 1.1rem;
+    font-weight: 700;
+    padding-bottom: 0.6rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid #f1f5f9;
+}
+.cfg-subtitulo {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 0.8rem;
+}
+.cfg-label {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+/* Cajas grises (ajustes, categorías, formatos) */
+.cfg-caja {
+    background-color: #f8fafc;
+    border: 1px solid #f1f5f9;
+    border-radius: 0.8rem;
+    padding: 0.9rem 1.1rem;
+}
+.cfg-opcion {
+    cursor: pointer;
+}
+
+.cfg-switch {
+    width: 2.8em;
+    height: 1.4em;
+    cursor: pointer;
+}
+
+/* Barra de almacenamiento */
+.cfg-progreso {
+    height: 0.6rem;
+    border-radius: 999px;
+    background-color: #e2e8f0;
+}
+
+/* Categorías */
+.cfg-punto {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background-color: #94a3b8;
+}
+.cfg-btn-rojo {
+    border: 0;
+    border-radius: 0.5rem;
+    padding: 0.3rem 0.9rem;
+    background-color: #fee2e2;
+    color: #dc2626;
+    font-size: 0.8rem;
+    font-weight: 600;
+    transition: filter 0.15s;
+}
+.cfg-btn-rojo:hover {
+    filter: brightness(0.95);
+}
+
+/* Ventana de nueva categoría */
+.cfg-dialog {
+    width: 100%;
+    max-width: 440px;
+    padding: 0;
+    border: 0;
+    border-radius: 1.1rem;
+    box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.3);
+}
+.cfg-dialog::backdrop {
+    background-color: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(3px);
+}
+
+/* Selector de color */
+.cfg-swatch-label {
+    margin: 0;
+    cursor: pointer;
+}
+.cfg-swatch-label input {
+    position: absolute;
+    opacity: 0;
+}
+.cfg-swatch {
+    display: block;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 3px solid #fff;
+    box-shadow: 0 0 0 1px #cbd5e1;
+    transition: transform 0.1s;
+}
+.cfg-swatch-label:hover .cfg-swatch {
+    transform: scale(1.1);
+}
+.cfg-swatch-label input:checked + .cfg-swatch {
+    box-shadow: 0 0 0 2px #0f172a;
+}
+.cfg-swatch-label input:focus-visible + .cfg-swatch {
+    outline: 2px solid #2563eb;
+    outline-offset: 3px;
+}
+
+/* Matriz de permisos */
+.cfg-tabla thead th {
+    background-color: #f8fafc;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #64748b;
+    border-bottom: 0;
+}
+.cfg-check {
+    width: 1.2rem;
+    height: 1.2rem;
+    cursor: pointer;
+}
+.cfg-check:disabled {
+    cursor: not-allowed;
+}

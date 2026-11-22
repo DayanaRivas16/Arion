@@ -1,0 +1,133 @@
+{% extends 'admin/admin_base.html' %}
+
+{% block title %}Dashboard - ARION Admin{% endblock %}
+
+
+{% block content %}
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin_dashboard.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin_modal.css') }}">
+
+<!-- Encabezado -->
+<div class="admin-hero rounded-4 text-white p-4 mb-4 shadow-sm">
+    <h1 class="h3 fw-bold mb-1">Panel de Control - Arion</h1>
+    <p class="mb-0 opacity-75">Gestión centralizada de proyectos escolares y usuarios de la comunidad.</p>
+</div>
+
+<!-- Tarjetas de resumen -->
+<div class="row g-3 mb-4 admin-stats">
+
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="card border-0 shadow-sm rounded-4 h-100">
+            <div class="card-body p-4">
+                <div class="text-uppercase small text-secondary">Total proyectos</div>
+                <div class="display-6 fw-bold text-dark">{{ stats.total_proyectos }}</div>
+                <div class="small text-secondary">{{ stats.creados_este_mes }} nuevos este mes</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="card border-0 shadow-sm rounded-4 h-100">
+            <div class="card-body p-4">
+                <div class="text-uppercase small text-secondary">Estudiantes</div>
+                <div class="display-6 fw-bold text-dark">{{ stats.estudiantes }}</div>
+                <div class="small text-secondary">Activos en plataforma</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="card border-0 shadow-sm rounded-4 h-100">
+            <div class="card-body p-4">
+                <div class="text-uppercase small text-secondary">Pendientes</div>
+                <div class="display-6 fw-bold text-warning">{{ stats.pendientes }}</div>
+                <div class="small text-warning">Requieren revisión</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="card border-0 shadow-sm rounded-4 h-100">
+            <div class="card-body p-4">
+                <div class="text-uppercase small text-secondary">Reportes</div>
+                <div class="display-6 fw-bold text-danger">{{ stats.reportes }}</div>
+                <div class="small text-danger">
+                    {{ 'Moderación activa' if stats.reportes else 'Sin reportes abiertos' }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Pendientes de aprobación -->
+<div class="card border-0 shadow-sm rounded-4">
+    <div class="card-body p-4">
+
+        <div class="d-flex justify-content-between align-items-start mb-3">
+            <div>
+                <h2 class="h5 fw-bold mb-0">Proyectos Pendientes de Aprobación</h2>
+                <small class="text-secondary">Revisa los últimos proyectos subidos por los estudiantes.</small>
+            </div>
+            <a href="/admin/proyectos?estado=Pendiente"
+               class="text-primary fw-semibold text-decoration-none small">Ver todos</a>
+        </div>
+
+        {% if pendientes %}
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead class="table-light">
+                    <tr class="small text-secondary text-uppercase">
+                        <th>Proyecto</th>
+                        <th>Autor</th>
+                        <th>Categoría</th>
+                        <th>Fecha</th>
+                        <th class="text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in pendientes %}
+                    <tr>
+                        <td class="fw-semibold">{{ p.titulo }}</td>
+                        <td class="text-secondary">{{ p.autor }} ({{ p.grado }})</td>
+                        <td>
+                            <span class="badge bg-light text-secondary border rounded-pill">
+                                {{ p.categoria or 'Sin categoría' }}
+                            </span>
+                        </td>
+                        <td class="text-secondary small">{{ p.fecha_creacion | fecha_es }}</td>
+                        <td class="text-center">
+                            <form method="post"
+                                  action="{{ url_for('admin_aprobar_proyecto', id=p.id_proyecto) }}"
+                                  class="d-inline"
+                                  data-confirmar="Se publicará «{{ p.titulo }}» y será visible para toda la comunidad."
+                                  data-confirmar-titulo="¿Aprobar este proyecto?"
+                                  data-confirmar-tipo="success"
+                                  data-confirmar-boton="Sí, aprobar"
+                                  data-confirmar-cargando="Aprobando...">
+                                <button class="btn btn-primary btn-sm fw-semibold px-3">Aprobar</button>
+                            </form>
+                            <a href="{{ url_for('admin_revisar_proyecto', id=p.id_proyecto) }}"
+                               class="btn btn-light btn-sm fw-semibold px-3">Revisar</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center text-secondary py-5">
+            <i class="bi bi-check2-circle fs-1 text-success"></i>
+            <p class="mt-2 mb-0">No hay proyectos pendientes. Todo está al día.</p>
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+
+
+<script src="{{ url_for('static', filename='js/admin_modal.js') }}"></script>
+<script src="{{ url_for('static', filename='js/admin_dashboard.js') }}"></script>
+
+{% endblock %}

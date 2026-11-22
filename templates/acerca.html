@@ -2,52 +2,132 @@
 
 {% block title %}Acerca de - ARION{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/acerca_de.css') }}">
+{% endblock %}
+
 {% block content %}
-<!-- Presentación general de ARION y su propósito institucional. -->
-<section class="bg-white border rounded-5 p-4 p-md-5 mb-4">
-    <div class="row align-items-center g-4">
-        <div class="col-12 col-lg-8">
-            <span class="badge bg-primary-subtle text-primary rounded-pill px-3 py-2 mb-3">Acerca de ARION</span>
-            <h1 class="display-5 fw-black text-dark mb-3">Ideas que inspiran y conectan</h1>
-            <p class="lead text-muted mb-0">
-                ARION es un espacio para descubrir, compartir y dar visibilidad a los proyectos
-                de la comunidad de la Institución Educativa Sagrada Familia.
-            </p>
+
+{% set photos = [
+    {'src': 'img/tecnologia.jpg',    'label': 'Backend'},
+    {'src': 'img/ana_foto.jpeg',    'label': 'Backend'},
+    {'src': 'img/creatividad.jpg',   'label': 'Frontend'},
+    {'src': 'img/colaboracion.jpg',  'label': 'Frontend'},
+    {'src': 'img/descubrimiento.jpg','label': 'Frontend'}
+] %}
+
+<!-- ACERCA DE ARION -->
+<section class="position-relative overflow-hidden py-5 acerca-bg rounded-5 mb-4">
+    <div class="position-absolute rounded-circle acerca-blob-1"></div>
+    <div class="position-absolute rounded-circle acerca-blob-2"></div>
+
+    <div class="container-xl position-relative py-3" style="z-index: 2;">
+
+        <div class="text-center mb-5 animate-fade-in-up">
+            <span class="d-inline-flex align-items-center gap-2 bg-primary-subtle text-primary small fw-semibold px-3 py-2 rounded-pill mb-3">
+                <i class="bi bi-stars"></i> Nuestra historia
+            </span>
+            <h2 class="fw-black text-dark display-6 m-0">Acerca de Arion</h2>
         </div>
-        <div class="col-12 col-lg-4 text-center">
-            <i class="bi bi-lightbulb text-primary" aria-hidden="true" style="font-size: 7rem;"></i>
+
+        <div class="row g-5 align-items-center">
+
+            <!-- Texto -->
+            <div class="col-12 col-lg-6 order-2 order-lg-1 animate-fade-in-up">
+                <div class="bg-white rounded-5 border shadow-sm p-4 p-sm-5">
+                    <h3 class="h5 fw-bold text-dark mb-4 d-flex align-items-center gap-2">
+                        <i class="bi bi-heart text-primary"></i> ¿Quiénes somos?
+                    </h3>
+                    <div class="text-muted lh-base d-flex flex-column gap-3">
+                        <p class="m-0">
+                            Arion nació como un espacio donde estudiantes y creadores pueden compartir sus proyectos,
+                            inspirar a otros y colaborar para transformar ideas en realidad. Creemos que el talento
+                            joven merece un lugar para brillar.
+                        </p>
+                        <p class="m-0">
+                            Nuestra plataforma conecta a una comunidad apasionada por la innovación, la tecnología y
+                            el diseño. Aquí, cada proyecto cuenta una historia de esfuerzo, creatividad y aprendizaje.
+                        </p>
+                        <p class="m-0">
+                            Únete a miles de estudiantes que ya están mostrando su trabajo al mundo y descubre cómo tu
+                            próxima idea puede inspirar a toda una comunidad.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Fotos redondas -->
+            <div class="col-12 col-lg-6 order-1 order-lg-2">
+                <div class="d-flex flex-wrap justify-content-center gap-3 gap-sm-4">
+                    {% for p in photos %}
+                    <div class="photo-item d-flex flex-column align-items-center"
+                         style="animation-delay: {{ loop.index0 * 0.12 }}s;">
+                        <div class="photo-float position-relative"
+                             style="animation-duration: {{ 3 + loop.index0 * 0.4 }}s;">
+                            <div class="photo-ring rounded-circle shadow">
+                                <div class="w-100 h-100 rounded-circle overflow-hidden border border-2 border-white">
+                                    <img src="{{ url_for('static', filename=p.src) }}" alt="{{ p.label }}" class="photo-img zoomable w-100 h-100 object-fit-cover">
+                                </div>
+                            </div>
+                            <div class="photo-badge position-absolute start-50 translate-middle-x bg-white rounded-pill px-2 py-1 shadow border">
+                                <span class="fw-semibold text-primary">{{ p.label }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
         </div>
     </div>
 </section>
 
-<!-- Acciones principales que puede realizar la comunidad dentro de ARION. -->
-<section class="row g-4 mb-4">
-    <div class="col-12 col-md-4">
-        <article class="bg-white border rounded-4 p-4 h-100">
-            <i class="bi bi-search text-primary fs-3" aria-hidden="true"></i>
-            <h2 class="h5 fw-bold mt-3">Explora</h2>
-            <p class="text-muted mb-0">Conoce una vista previa de los proyectos publicados sin crear una cuenta.</p>
-        </article>
-    </div>
-    <div class="col-12 col-md-4">
-        <article class="bg-white border rounded-4 p-4 h-100">
-            <i class="bi bi-people text-primary fs-3" aria-hidden="true"></i>
-            <h2 class="h5 fw-bold mt-3">Conecta</h2>
-            <p class="text-muted mb-0">Inicia sesión para consultar la información completa e interactuar con los proyectos.</p>
-        </article>
-    </div>
-    <div class="col-12 col-md-4">
-        <article class="bg-white border rounded-4 p-4 h-100">
-            <i class="bi bi-upload text-primary fs-3" aria-hidden="true"></i>
-            <h2 class="h5 fw-bold mt-3">Comparte</h2>
-            <p class="text-muted mb-0">Regístrate para publicar tus ideas y compartirlas con la comunidad.</p>
-        </article>
+<!-- DOCENTE ENCARGADO -->
+<section class="position-relative overflow-hidden py-5 bg-white rounded-5">
+    <div class="position-absolute rounded-circle docente-blob-1"></div>
+    <div class="position-absolute rounded-circle docente-blob-2"></div>
+
+    <div class="container position-relative py-3" style="max-width: 900px; z-index: 2;">
+
+        <div class="text-center mb-5 animate-fade-in-up">
+            <span class="d-inline-flex align-items-center gap-2 bg-warning-subtle text-warning-emphasis small fw-semibold px-3 py-2 rounded-pill mb-3">
+                <i class="bi bi-mortarboard"></i> Docente encargado
+            </span>
+            <h2 class="fw-black text-dark display-6 m-0">Conoce al docente</h2>
+        </div>
+
+        <div class="docente-card rounded-5 border shadow-sm p-4 p-sm-5 d-flex flex-column flex-sm-row align-items-center gap-4 gap-sm-5 animate-fade-in-up">
+
+            <div class="flex-shrink-0 animate-float">
+                <div class="docente-ring rounded-circle shadow">
+                    <div class="w-100 h-100 rounded-circle overflow-hidden border border-2 border-white">
+                        <img src="{{ url_for('static', filename='img/docente.jpg') }}" alt="Docente encargado" class="zoomable w-100 h-100 object-fit-cover">
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-center text-sm-start flex-grow-1">
+                <h3 class="fw-bold text-dark h4 m-0">Nombre del docente</h3>
+                <p class="text-primary fw-medium mt-1 mb-0">Docente encargado de proyectos</p>
+                <p class="text-muted lh-base mt-3 mx-auto mx-sm-0" style="max-width: 450px;">
+                    Encargado de guiar y supervisar los proyectos de los estudiantes. Apoya la creatividad,
+                    la innovación y el desarrollo de ideas que transforman la comunidad educativa.
+                </p>
+
+                <div class="d-flex flex-column flex-sm-row gap-2 mt-4 justify-content-center justify-content-sm-start">
+                    <div class="d-inline-flex align-items-center justify-content-center gap-2 small text-muted bg-white rounded-pill px-3 py-2 border">
+                        <i class="bi bi-envelope text-primary"></i> correo@colegio.edu
+                    </div>
+                    <div class="d-inline-flex align-items-center justify-content-center gap-2 small text-muted bg-white rounded-pill px-3 py-2 border">
+                        <i class="bi bi-book text-primary"></i> Área: Tecnología
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </section>
 
-{% if not session.get('user_id') %}
-<div class="text-center">
-    <a href="{{ url_for('login') }}" class="btn btn-primary rounded-pill px-4">Acceder con Google</a>
-</div>
-{% endif %}
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/acerca_de.js') }}"></script>
+{% endblock %}
 {% endblock %}

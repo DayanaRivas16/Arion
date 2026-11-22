@@ -1,11 +1,262 @@
 {% extends 'admin/admin_base.html' %}
 
-{% block title %}Configuración{% endblock %}
+{% block title %}Configuración - ARION Admin{% endblock %}
 
 {% block content %}
-<!-- Encabezado de la sección donde se administrará la configuración general. -->
-<div class="page-head">
-    <h1>Configuración</h1>
-    <p class="sub">Administra la configuración general del panel.</p>
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin_configuracion.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin_modal.css') }}">
+
+{% set menu = [('general', 'Parámetros Generales', 'bi-gear'),
+               ('categorias', 'Gestión de Categorías', 'bi-tags'),
+               ('almacenamiento', 'Almacenamiento y Archivos', 'bi-box-seam'),
+               ('permisos', 'Permisos de Roles', 'bi-lock')] %}
+
+{% set subtitulos = {
+    'general': 'Ajusta los parámetros generales del aplicativo, reglas de subida y categorías del sistema.',
+    'categorias': 'Administra las etiquetas y áreas temáticas disponibles para los proyectos de los estudiantes.',
+    'almacenamiento': 'Controla el espacio de almacenamiento y los formatos de documentos permitidos.',
+    'permisos': 'Define qué acciones pueden realizar los estudiantes y docentes en la plataforma.'
+} %}
+
+<h1 class="h3 fw-bold mb-1">{{ 'Configuración General' if seccion == 'general' else 'Configuración del Sistema' }}</h1>
+<p class="text-secondary mb-4">{{ subtitulos[seccion] }}</p>
+
+<div class="row g-4">
+
+    <!-- Menú lateral -->
+    <div class="col-12 col-lg-3">
+        <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-body p-2">
+                <nav class="d-flex flex-lg-column gap-1">
+                    {% for clave, texto, icono in menu %}
+                        <a href="{{ url_for('admin_configuracion', seccion=clave) }}"
+                           class="cfg-menu {{ 'active' if seccion == clave }}">
+                            <i class="bi {{ icono }}"></i> <span>{{ texto }}</span>
+                        </a>
+                    {% endfor %}
+                </nav>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenido -->
+    <div class="col-12 col-lg-9">
+        <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-body p-4">
+
+            {# ================= PARÁMETROS GENERALES ================= #}
+            {% if seccion == 'general' %}
+                <form method="post" action="{{ url_for('admin_guardar_general') }}">
+
+                    <h2 class="cfg-titulo">Información Institucional</h2>
+                    <div class="row g-3 mb-4">
+                        <div class="col-12 col-md-6">
+                            <label for="institucion" class="cfg-label">Nombre de la institución</label>
+                            <input type="text" id="institucion" name="institucion" class="form-control"
+                                   value="{{ config.institucion }}" maxlength="150" required>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label for="anio_lectivo" class="cfg-label">Año lectivo activo</label>
+                            <input type="text" id="anio_lectivo" name="anio_lectivo" class="form-control"
+                                   value="{{ config.anio_lectivo }}" maxlength="50" required>
+                        </div>
+                    </div>
+
+                    <h2 class="cfg-titulo">Reglas de Carga de Proyectos</h2>
+                    <div class="mb-3" style="max-width: 280px;">
+                        <label for="max_mb" class="cfg-label">Tamaño máximo por archivo (PDF / DOCX)</label>
+                        <div class="input-group">
+                            <input type="number" id="max_mb" name="max_mb" class="form-control"
+                                   value="{{ config.max_mb }}" min="1" max="15" required>
+                            <span class="input-group-text">MB</span>
+                        </div>
+                        <div class="form-text">Entre 1 y 15 MB. El servidor acepta 16 MB por envío en total.</div>
+                    </div>
+
+                    <div class="cfg-caja d-flex align-items-center justify-content-between gap-3">
+                        <div>
+                            <label for="moderacion" class="fw-semibold mb-0">Moderación obligatoria</label>
+                            <div class="small text-secondary">Requiere aprobación antes de publicar un proyecto.</div>
+                        </div>
+                        <div class="form-check form-switch m-0">
+                            <input class="form-check-input cfg-switch" type="checkbox" role="switch"
+                                   id="moderacion" name="moderacion" {{ 'checked' if config.moderacion }}>
+                        </div>
+                    </div>
+
+                    <div class="text-end mt-4 pt-3 border-top">
+                        <button class="btn btn-primary fw-semibold px-4">Guardar Cambios</button>
+                    </div>
+                </form>
+
+            {# ================= CATEGORÍAS ================= #}
+            {% elif seccion == 'categorias' %}
+                <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 pb-3 mb-3 border-bottom">
+                    <div>
+                        <h2 class="cfg-titulo border-0 mb-0 pb-0">Categorías de Proyectos</h2>
+                        <small class="text-secondary">Agrega o elimina las áreas en las que se clasifican las iniciativas.</small>
+                    </div>
+                    <button type="button" class="btn btn-primary fw-semibold" id="btnNuevaCategoria">
+                        + Nueva Categoría
+                    </button>
+                </div>
+
+                {% for c in categorias %}
+                <div class="cfg-caja d-flex align-items-center gap-3 mb-2">
+                    <span class="cfg-punto" data-color="{{ c.color }}"></span>
+                    <div class="flex-grow-1">
+                        <div class="fw-semibold">{{ c.nombre_categoria }}</div>
+                        {% if c.descripcion %}<div class="small text-secondary">{{ c.descripcion }}</div>{% endif %}
+                    </div>
+                    <span class="small text-secondary d-none d-sm-inline">
+                        {{ c.proyectos }} proyecto{{ '' if c.proyectos == 1 else 's' }}
+                    </span>
+                    <form method="post" action="{{ url_for('admin_eliminar_categoria', id=c.id_categoria) }}"
+                          data-confirmar="{{ ('Se eliminará «' ~ c.nombre_categoria ~ '». ' ~ c.proyectos ~ ' proyecto(s) quedarán sin categoría.') if c.proyectos else ('Se eliminará la categoría «' ~ c.nombre_categoria ~ '». No tiene proyectos asociados.') }}"
+                          data-confirmar-titulo="¿Eliminar esta categoría?"
+                          data-confirmar-tipo="danger"
+                          data-confirmar-boton="Sí, eliminar"
+                          data-confirmar-cargando="Eliminando...">
+                        <button class="cfg-btn-rojo">Eliminar</button>
+                    </form>
+                </div>
+                {% else %}
+                <p class="text-secondary text-center py-4 mb-0">Aún no hay categorías. Crea la primera.</p>
+                {% endfor %}
+
+                <!-- Ventana para crear categoría (elemento <dialog> nativo) -->
+                <dialog id="dlgCategoria" class="cfg-dialog">
+                    <form method="post" action="{{ url_for('admin_crear_categoria') }}" class="p-4">
+                        <h2 class="h5 fw-bold mb-3">Nueva categoría</h2>
+
+                        <label for="catNombre" class="cfg-label">Nombre</label>
+                        <input type="text" id="catNombre" name="nombre" class="form-control mb-3"
+                               maxlength="100" required placeholder="Ej. Robótica">
+
+                        <label for="catDescripcion" class="cfg-label">Descripción (opcional)</label>
+                        <input type="text" id="catDescripcion" name="descripcion" class="form-control mb-3"
+                               maxlength="300" placeholder="Qué tipo de proyectos incluye">
+
+                        <span class="cfg-label d-block">Color</span>
+                        <div class="d-flex flex-wrap gap-2 mb-4">
+                            {% for col in colores %}
+                                <label class="cfg-swatch-label">
+                                    <input type="radio" name="color" value="{{ col }}" {{ 'checked' if loop.first }}>
+                                    <span class="cfg-swatch" data-color="{{ col }}"></span>
+                                </label>
+                            {% endfor %}
+                        </div>
+
+                        <div class="d-flex gap-2 justify-content-end">
+                            <button type="button" class="btn btn-light fw-semibold" id="btnCerrarCategoria">Cancelar</button>
+                            <button class="btn btn-primary fw-semibold">Crear categoría</button>
+                        </div>
+                    </form>
+                </dialog>
+
+            {# ================= ALMACENAMIENTO ================= #}
+            {% elif seccion == 'almacenamiento' %}
+                <h2 class="cfg-titulo">Uso de Almacenamiento del Servidor</h2>
+
+                <div class="cfg-caja mb-4">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="fw-semibold">Espacio utilizado</span>
+                        <span class="fw-semibold text-primary">
+                            {{ usado | tamano_legible }} de {{ config.almacenamiento_total_gb }} GB ({{ porcentaje | round(1) }}%)
+                        </span>
+                    </div>
+                    <div class="progress cfg-progreso" role="progressbar" aria-valuenow="{{ porcentaje }}" aria-valuemin="0" aria-valuemax="100">
+                        <div class="progress-bar {{ 'bg-danger' if porcentaje >= 90 else 'bg-warning' if porcentaje >= 70 else '' }}"
+                             style="width: {{ porcentaje }}%"></div>
+                    </div>
+                    <div class="small text-secondary mt-2">
+                        Documentos: {{ documentos | tamano_legible }} · Portadas: {{ portadas | tamano_legible }}
+                    </div>
+                </div>
+
+                <form method="post" action="{{ url_for('admin_guardar_almacenamiento') }}" id="formFormatos">
+                    <h3 class="cfg-subtitulo">Formatos Permitidos para Estudiantes</h3>
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6">
+                            <label class="cfg-caja d-flex align-items-center gap-2 mb-0 cfg-opcion">
+                                <input type="checkbox" class="form-check-input mt-0 cfg-formato" name="permite_pdf"
+                                       {{ 'checked' if config.permite_pdf }}>
+                                <span>Documentos PDF (.pdf)</span>
+                            </label>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="cfg-caja d-flex align-items-center gap-2 mb-0 cfg-opcion">
+                                <input type="checkbox" class="form-check-input mt-0 cfg-formato" name="permite_docx"
+                                       {{ 'checked' if config.permite_docx }}>
+                                <span>Microsoft Word (.docx)</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="text-danger small mt-2 d-none" id="errorFormatos">Debe quedar al menos un formato permitido.</div>
+
+                    <div class="text-end mt-4 pt-3 border-top">
+                        <button class="btn btn-primary fw-semibold px-4">Guardar Cambios</button>
+                    </div>
+                </form>
+
+            {# ================= PERMISOS ================= #}
+            {% elif seccion == 'permisos' %}
+                <h2 class="cfg-titulo">Matriz de Permisos por Rol</h2>
+
+                <form method="post" action="{{ url_for('admin_guardar_permisos') }}"
+                      data-confirmar="Los cambios se aplican de inmediato a todos los usuarios de cada rol."
+                      data-confirmar-titulo="¿Guardar los permisos?"
+                      data-confirmar-tipo="success"
+                      data-confirmar-boton="Sí, guardar"
+                      data-confirmar-cargando="Guardando...">
+
+                    <div class="table-responsive">
+                        <table class="table align-middle cfg-tabla mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Acción / Módulo</th>
+                                    {% for rol, nombre in roles %}<th class="text-center">{{ nombre }}</th>{% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for accion, descripcion in acciones %}
+                                <tr>
+                                    <td>{{ descripcion }}</td>
+                                    {% for rol, nombre in roles %}
+                                        {% set clave = accion ~ '__' ~ rol %}
+                                        <td class="text-center">
+                                            <input type="checkbox" class="form-check-input cfg-check"
+                                                   name="{{ clave }}"
+                                                   aria-label="{{ nombre }}: {{ descripcion }}"
+                                                   {{ 'checked' if marcados.get(clave) }}
+                                                   {{ 'disabled' if clave in fijos }}>
+                                        </td>
+                                    {% endfor %}
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <p class="small text-secondary mt-3 mb-0">
+                        <i class="bi bi-info-circle"></i>
+                        Las casillas bloqueadas no se pueden cambiar: el administrador siempre conserva todos los
+                        permisos, el estudiante no puede aprobar y solo el administrador gestiona usuarios.
+                    </p>
+
+                    <div class="text-end mt-4 pt-3 border-top">
+                        <button class="btn btn-primary fw-semibold px-4">Guardar Permisos</button>
+                    </div>
+                </form>
+            {% endif %}
+
+            </div>
+        </div>
+    </div>
 </div>
+
+<script src="{{ url_for('static', filename='js/admin_modal.js') }}"></script>
+<script src="{{ url_for('static', filename='js/admin_configuracion.js') }}"></script>
+
 {% endblock %}

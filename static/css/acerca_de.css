@@ -1,0 +1,95 @@
+/* ===== Acerca de Arion ===== */
+.acerca-bg {
+    background-color: rgba(241, 245, 249, 0.6);
+}
+.acerca-blob-1 {
+    width: 288px; height: 288px;
+    top: 0; right: 0;
+    background: rgba(13, 110, 253, 0.05);
+    filter: blur(60px);
+    z-index: 1;
+}
+.acerca-blob-2 {
+    width: 224px; height: 224px;
+    bottom: 0; left: 0;
+    background: rgba(255, 193, 7, 0.12);
+    filter: blur(40px);
+    z-index: 1;
+}
+
+/* Fotos redondas */
+.photo-item {
+    opacity: 0;
+    animation: popIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+@keyframes popIn {
+    from { opacity: 0; transform: scale(0.5); }
+    to   { opacity: 1; transform: scale(1); }
+}
+
+.photo-float {
+    animation-name: floatAnimation; /* ya existe en base.css */
+    animation-timing-function: ease-in-out;
+    animation-iteration-count: infinite;
+}
+
+.photo-ring {
+    width: 96px; height: 96px;
+    padding: 3px;
+    background: linear-gradient(135deg, #0d6efd 0%, rgba(13, 110, 253, 0.8) 50%, #ffc107 100%);
+    transition: box-shadow 0.3s ease;
+}
+@media (min-width: 576px) {
+    .photo-ring { width: 128px; height: 128px; padding: 4px; }
+}
+@media (min-width: 992px) {
+    .photo-ring { width: 144px; height: 144px; }
+}
+
+.photo-img {
+    transition: transform 0.5s ease;
+}
+.photo-item:hover .photo-img {
+    transform: scale(1.1);
+}
+.photo-item:hover .photo-ring {
+    box-shadow: 0 1rem 2rem rgba(15, 23, 42, 0.18) !important;
+}
+
+.photo-badge {
+    bottom: -4px;
+    opacity: 0;
+    white-space: nowrap;
+    font-size: 0.7rem;
+    transition: opacity 0.3s ease;
+}
+.photo-item:hover .photo-badge {
+    opacity: 1;
+}
+
+/* ===== Docente ===== */
+.docente-blob-1 {
+    width: 256px; height: 256px;
+    top: 0; left: 0;
+    background: rgba(13, 110, 253, 0.05);
+    filter: blur(60px);
+    z-index: 1;
+}
+.docente-blob-2 {
+    width: 224px; height: 224px;
+    bottom: 0; right: 0;
+    background: rgba(255, 193, 7, 0.12);
+    filter: blur(40px);
+    z-index: 1;
+}
+.docente-card {
+    background-color: rgba(241, 245, 249, 0.6);
+}
+.docente-ring {
+    width: 176px; height: 176px;
+    padding: 4px;
+    background: linear-gradient(135deg, #0d6efd 0%, rgba(13, 110, 253, 0.8) 50%, #ffc107 100%);
+}
+@media (max-width: 575.98px) {
+    .docente-ring { width: 144px; height: 144px; }
+}
