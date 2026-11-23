@@ -20,7 +20,7 @@
             <a class="brand" href="{{ url_for('admin_dashboard') }}">ARION</a>
 
             {# Cada enlace usa el nombre de su ruta en app.py y también marca la sección activa. #}
-            <nav class="links">
+            <nav class="links" aria-label="Navegación principal del panel">
                 <a href="{{ url_for('admin_dashboard') }}" class="{{ 'active' if request.endpoint == 'admin_dashboard' }}">Dashboard</a>
                 <a href="{{ url_for('admin_usuarios') }}" class="{{ 'active' if request.endpoint == 'admin_usuarios' }}">Usuarios</a>
                 <a href="{{ url_for('admin_proyectos') }}" class="{{ 'active' if request.endpoint == 'admin_proyectos' }}">Proyectos</a>
@@ -31,8 +31,8 @@
             <div class="user">
                 <span class="pill pill-blue">Admin General</span>
                 {# Inicial del nombre guardado en la sesión al iniciar sesión #}
-                <a class="avatar">{{ (session.get('user_name') or 'A')[0]|upper }}</a>
-                <a href="{{ url_for('logout') }}" class="btn btn-outline-danger rounded-pill px-4 fw-medium">
+                <a class="avatar" title="{{ session.get('user_name') or 'Admin' }}">{{ (session.get('user_name') or 'A')[0]|upper }}</a>
+                <a href="{{ url_for('logout') }}" class="btn btn-outline-danger rounded-pill px-3 px-sm-4 fw-medium logout-btn">
                     Cerrar sesión
                 </a>
             </div>

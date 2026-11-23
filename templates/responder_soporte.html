@@ -1,34 +1,35 @@
 {% extends "admin/admin_base.html" %}
 
-{% block title %}Responder Consulta - ARION{% endblock %}
+{% block title %}Responder consulta - ARION{% endblock %}
 
 {% block content %}
 <div class="container py-4">
-    <h2>Responder Consulta de Soporte #{{ consulta.id_soporte }}</h2>
-    <p><strong>Usuario:</strong> {{ consulta.usuario_nombre }} ({{ consulta.usuario_correo }})</p>
-    <p><strong>Asunto:</strong> {{ consulta.asunto }}</p>
-    <p><strong>Estado actual:</strong> {{ consulta.estado|capitalize }}</p>
-    <div class="p-3 mb-3 bg-light border rounded">
-        <strong>Mensaje del usuario:</strong>
-        <p class="mb-0">{{ consulta.descripcion }}</p>
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <h2 class="mb-0">Responder consulta #{{ consulta.id_soporte }}</h2>
+        <a href="{{ url_for('admin_reportes') }}" class="btn btn-outline-secondary rounded-pill px-3">
+            Volver a Reportes
+        </a>
     </div>
 
-    <form method="POST">
-        <div class="mb-3">
-            <label for="estado" class="form-label">Estado de la consulta</label>
-            <select name="estado" id="estado" class="form-select">
-                <option value="pendiente" {% if consulta.estado|lower == 'pendiente' %}selected{% endif %}>Pendiente</option>
-                <option value="en proceso" {% if consulta.estado|lower == 'en proceso' %}selected{% endif %}>En proceso</option>
-                <option value="resuelta" {% if consulta.estado|lower == 'resuelta' %}selected{% endif %}>Resuelta</option>
-            </select>
+    <div class="card border-0 shadow-sm rounded-4 p-4 mb-4 bg-white">
+        <p class="mb-1"><strong>Usuario:</strong> {{ consulta.usuario_nombre }} ({{ consulta.usuario_correo }})</p>
+        <p class="mb-1"><strong>Asunto:</strong> {{ consulta.asunto }}</p>
+        <p class="mb-3"><strong>Estado actual:</strong> {{ consulta.estado|capitalize }}</p>
+        <div class="p-3 bg-light border rounded-3">
+            <strong>Mensaje del usuario:</strong>
+            <p class="mb-0 mt-1">{{ consulta.descripcion }}</p>
         </div>
+    </div>
 
-        <div class="mb-3">
-            <label for="respuesta" class="form-label">Respuesta</label>
-            <textarea name="respuesta" id="respuesta" rows="5" class="form-control" placeholder="Escribe aquí la respuesta para el usuario...">{{ consulta.respuesta or '' }}</textarea>
-        </div>
+    <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
+        <form method="POST">
+            <div class="mb-3">
+                <label for="respuesta" class="form-label">Respuesta</label>
+                <textarea name="respuesta" id="respuesta" rows="5" class="form-control rounded-3" placeholder="Escribe aquí la respuesta para el usuario..." required>{{ consulta.respuesta or '' }}</textarea>
+            </div>
 
-        <button type="submit" class="btn btn-primary">Guardar respuesta y actualizar estado</button>
-    </form>
+            <button type="submit" class="btn btn-primary rounded-pill px-4">Enviar respuesta</button>
+        </form>
+    </div>
 </div>
 {% endblock %}

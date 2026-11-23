@@ -58,6 +58,7 @@
                     <th>Correo</th>
                     <th>Mensaje</th>
                     <th>Estado</th>
+                    <th class="c">Acción</th>
                 </tr>
             </thead>
             <tbody>
@@ -69,16 +70,24 @@
                             <span class="strong">{{ consulta.nombre }}</span>
                         </div>
                     </td>
-                    <td class="report-email">{{ consulta.correo }}</td>
-                    <td class="report-message" title="{{ consulta.asunto }}: {{ consulta.descripcion }}">
+                    <td data-label="Correo" class="report-email">{{ consulta.correo }}</td>
+                    <td data-label="Mensaje" class="report-message" title="{{ consulta.asunto }}: {{ consulta.descripcion }}">
                         <strong>{{ consulta.asunto }}</strong>
                         <p>{{ consulta.descripcion|truncate(180, true) }}</p>
                     </td>
-                    <td>
+                    <td data-label="Estado">
                         {% if consulta.estado|lower == 'pendiente' %}
                         <span class="chip chip-amber">{{ consulta.estado }}</span>
                         {% else %}
                         <span class="chip chip-green">{{ consulta.estado }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="c nowrap">
+                        {% if (consulta.estado or '')|lower != 'resuelta' %}
+                        <a href="{{ url_for('responder_soporte', id_soporte=consulta.id_soporte) }}"
+                           class="btn btn-primary btn-sm">
+                            Responder consulta
+                        </a>
                         {% endif %}
                     </td>
                 </tr>
@@ -204,9 +213,9 @@
                                 <span class="strong">{{ estudiante.nombre }}</span>
                             </div>
                         </td>
-                        <td>{{ estudiante.grado or 'N/A' }}</td>
-                        <td class="report-number">{{ estudiante.proyectos }}</td>
-                        <td class="report-rating">
+                        <td data-label="Grado">{{ estudiante.grado or 'N/A' }}</td>
+                        <td data-label="Proyectos" class="report-number">{{ estudiante.proyectos }}</td>
+                        <td data-label="Valoración" class="report-rating">
                             {% if estudiante.valoracion_promedio is not none %}
                             <i class="bi bi-star-fill" aria-hidden="true"></i>
                             {{ estudiante.valoracion_promedio|round(1) }}
@@ -214,7 +223,7 @@
                             <span class="t-muted">Sin valoraciones</span>
                             {% endif %}
                         </td>
-                        <td class="c">{{ estudiante.vistas_totales|int }}</td>
+                        <td data-label="Vistas" class="c">{{ estudiante.vistas_totales|int }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>

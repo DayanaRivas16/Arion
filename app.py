@@ -14,8 +14,9 @@ from urllib.parse import urlsplit
 load_dotenv()
 
 app = Flask(__name__)
-
-app.secret_key = os.getenv('SECRET_KEY')
+app.secret_key = os.getenv('SECRET_KEY') or 'clave-dev-temporal-cambia-esto-en-produccion'
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = False
 
 # =====================================================================
 # PANEL DE ADMINISTRADOR: acceso, base del panel y gestión de usuarios
@@ -416,7 +417,8 @@ def admin_eliminar_proyecto(id):
 @admin_required
 def admin_reportes():
     consultas = consultar("""
-        SELECT u.nombre_completo AS nombre,
+        SELECT s.id_soporte,
+               u.nombre_completo AS nombre,
                u.correo_usuario AS correo,
                s.asunto,
                s.descripcion,
@@ -1878,12 +1880,22 @@ def subir():
 @login_required
 def perfil():
     uid = session['user_id']
-    conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    conn = None
+    cursor = None
+    usuario = {}
+    proyectos = []
+    borradores = []
+    en_revision = []
+    categorias = []
+    mis_consultas = []
+
     try:
-        # datos del usuario y su rol
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # 1. Datos del usuario y su rol
         cursor.execute("""
-            SELECT u.nombre_completo AS nombre, u.correo_usuario AS correo, 
+            SELECT u.nombre_completo AS nombre, u.correo_usuario AS correo,
                    u.foto_perfil AS foto, u.fecha_creacion AS desde,
                    t.nombre_tipo AS rol
             FROM usuarios u
@@ -1891,7 +1903,11 @@ def perfil():
             WHERE u.id_usuario = %s;
         """, (uid,))
         usuario_db = cursor.fetchone()
-        
+
+        if not usuario_db:
+            flash('No se encontró la información del usuario.', 'warning')
+            return redirect(url_for('login'))
+
         usuario = {
             'nombre': usuario_db['nombre'],
             'correo': usuario_db['correo'],
@@ -1900,9 +1916,9 @@ def perfil():
             'rol': usuario_db['rol']
         }
 
-        #  Mis proyectos 
+        # 2. Mis proyectos publicados
         cursor.execute("""
-            SELECT DISTINCT p.id_proyecto AS id, p.titulo, p.descripcion, 
+            SELECT DISTINCT p.id_proyecto AS id, p.titulo, p.descripcion,
                    p.imagen_portada, p.estado, p.es_destacado AS destacado,
                    p.vistas_count AS vistas, p.likes_count AS likes,
                    p.calificacion::float AS rating, p.id_categoria,
@@ -1912,21 +1928,18 @@ def perfil():
             FROM proyectos p
             LEFT JOIN categorias c ON c.id_categoria = p.id_categoria
             LEFT JOIN proyecto_colaboradores pc ON pc.id_proyecto = p.id_proyecto
-            WHERE LOWER(p.estado) = 'publicado' 
+            WHERE LOWER(p.estado) = 'publicado'
               AND (p.id_usuario = %s OR pc.id_usuario = %s)
             ORDER BY p.fecha_creacion DESC;
         """, (uid, uid, uid))
-        proyectos_raw = cursor.fetchall()
-        
-        proyectos = []
-        for p in proyectos_raw:
+        for p in cursor.fetchall():
             p_dict = dict(p)
-            p_dict['imagen'] = url_for('static', filename=p_dict['imagen_portada']) if p_dict['imagen_portada'] else ''
+            p_dict['imagen'] = url_for('static', filename=p_dict['imagen_portada']) if p_dict.get('imagen_portada') else ''
             proyectos.append(p_dict)
 
-        #  Borradores 
+        # 3. Borradores
         cursor.execute("""
-            SELECT p.id_proyecto AS id, p.titulo, p.descripcion, 
+            SELECT p.id_proyecto AS id, p.titulo, p.descripcion,
                    p.imagen_portada, p.estado, p.motivo_rechazo,
                    p.es_destacado AS destacado,
                    p.vistas_count AS vistas, p.likes_count AS likes,
@@ -1939,56 +1952,84 @@ def perfil():
             WHERE LOWER(p.estado) = 'borrador' AND p.id_usuario = %s
             ORDER BY p.fecha_creacion DESC;
         """, (uid,))
-        borradores_raw = cursor.fetchall()
-        
-        borradores = []
-        for p in borradores_raw:
+        for p in cursor.fetchall():
             p_dict = dict(p)
-            p_dict['imagen'] = url_for('static', filename=p_dict['imagen_portada']) if p_dict['imagen_portada'] else ''
+            p_dict['imagen'] = url_for('static', filename=p_dict['imagen_portada']) if p_dict.get('imagen_portada') else ''
             borradores.append(p_dict)
 
-        #  guardados o fav 
-        guardados = []
+        # 4. Proyectos en revisión (solo los pendientes de aprobación del docente)
+        en_revision = []
+        try:
+            cursor.execute("""
+                SELECT DISTINCT p.id_proyecto AS id, p.titulo, p.descripcion,
+                       p.imagen_portada, p.estado, p.motivo_rechazo,
+                       p.es_destacado AS destacado,
+                       p.vistas_count AS vistas, p.likes_count AS likes,
+                       p.calificacion::float AS rating, p.id_categoria,
+                       COALESCE(c.nombre_categoria, 'Sin categoría') AS categoria,
+                       (p.id_usuario = %s) AS es_autor,
+                       p.fecha_creacion
+                FROM proyectos p
+                LEFT JOIN categorias c ON c.id_categoria = p.id_categoria
+                LEFT JOIN proyecto_colaboradores pc ON pc.id_proyecto = p.id_proyecto
+                WHERE LOWER(COALESCE(p.estado, '')) = 'pendiente'
+                  AND (p.id_usuario = %s OR pc.id_usuario = %s)
+                ORDER BY p.fecha_creacion DESC;
+            """, (uid, uid, uid))
+            for p in cursor.fetchall():
+                p_dict = dict(p)
+                p_dict['imagen'] = url_for('static', filename=p_dict['imagen_portada']) if p_dict.get('imagen_portada') else ''
+                en_revision.append(p_dict)
+        except Exception:
+            conn.rollback()
+            app.logger.exception('Error cargando proyectos en revisión en perfil')
 
-        #  categorías 
+        # 5. Categorías
         cursor.execute("SELECT id_categoria AS id, nombre_categoria AS nombre FROM categorias ORDER BY nombre_categoria;")
         categorias = cursor.fetchall()
 
-        # Justo después de cargar `categorias` (dentro del try de perfil()):
-        cursor.execute("""
-            SELECT s.id_soporte,
-                   s.asunto,
-                   s.descripcion,
-                   s.estado,
-                   s.respuesta,
-                   s.fecha_creacion,
-                   s.fecha_respuesta,
-                   u_resp.nombre_completo AS respondido_por_nombre
-            FROM soporte s
-            LEFT JOIN usuarios u_resp ON u_resp.id_usuario = s.respondido_por
-            WHERE s.usuario_id = %s
-            ORDER BY s.fecha_creacion DESC;
-        """, (uid,))
-        mis_consultas = cursor.fetchall()
+        # 6. Consultas de soporte
+        try:
+            cursor.execute("""
+                SELECT s.id_soporte,
+                       s.asunto,
+                       s.descripcion,
+                       s.estado,
+                       s.respuesta,
+                       s.fecha_creacion,
+                       s.fecha_respuesta,
+                       u_resp.nombre_completo AS respondido_por_nombre
+                FROM soporte s
+                LEFT JOIN usuarios u_resp ON u_resp.id_usuario = s.respondido_por
+                WHERE s.usuario_id = %s
+                ORDER BY s.fecha_creacion DESC;
+            """, (uid,))
+            mis_consultas = cursor.fetchall()
+        except Exception:
+            conn.rollback()
+            app.logger.exception('Error cargando consultas de soporte en perfil')
 
-    except Exception:
+    except Exception as e:
+        if conn:
+            conn.rollback()
         app.logger.exception('Error cargando el perfil del usuario')
-        flash('No se pudo cargar la información del perfil.', 'danger')
-        usuario, proyectos, borradores, guardados, categorias, mis_consultas= {}, [], [], [], [], []
+        flash(f'No se pudo cargar la información del perfil: {e}', 'danger')
+
     finally:
-        cursor.close()
-        conn.close()
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
     return render_template(
         'mi_perfil.html',
         usuario=usuario,
         proyectos=proyectos,
         borradores=borradores,
-        guardados=guardados,
+        en_revision=en_revision,
         categorias=categorias,
         mis_consultas=mis_consultas
     )
-
 
 # ======================================================
 # RUTA DE RECURSOS
@@ -2042,6 +2083,77 @@ def inyectar_pendientes_docente():
             if conn: conn.close()
     return {'pendientes_revision_count': 0}
 
+@app.context_processor
+def inyectar_notificaciones_usuario():
+    uid = session.get('user_id')
+    if not uid or session.get('id_tipo') != ID_TIPO_ESTUDIANTE:
+        return {'notificaciones_usuario': [], 'notificaciones_count': 0}
+
+    conn = cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT id_notificacion AS id,
+                   tipo,
+                   titulo,
+                   mensaje,
+                   motivo,
+                   url_destino AS url,
+                   fecha_creacion
+            FROM notificaciones_usuario
+            WHERE id_usuario = %s
+              AND leida = FALSE
+            ORDER BY fecha_creacion DESC, id_notificacion DESC
+            LIMIT 10;
+        """, (uid,))
+        avisos = [dict(f) for f in cur.fetchall()]
+        return {'notificaciones_usuario': avisos, 'notificaciones_count': len(avisos)}
+    except Exception:
+        app.logger.exception('Error cargando notificaciones del usuario')
+        return {'notificaciones_usuario': [], 'notificaciones_count': 0}
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+@app.route('/notificaciones/leer', methods=['POST'])
+@login_required
+def marcar_notificaciones_leidas():
+    uid = session['user_id']
+    notif_id = request.form.get('id', type=int)
+    conn = cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        if notif_id:
+            cur.execute("""
+                UPDATE notificaciones_usuario
+                SET leida = TRUE
+                WHERE id_notificacion = %s AND id_usuario = %s;
+            """, (notif_id, uid))
+        else:
+            cur.execute("""
+                UPDATE notificaciones_usuario
+                SET leida = TRUE
+                WHERE id_usuario = %s AND leida = FALSE;
+            """, (uid,))
+        conn.commit()
+    except Exception:
+        if conn:
+            conn.rollback()
+        app.logger.exception('Error al marcar notificaciones como leídas')
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+    destino = request.form.get('destino') or (url_for('perfil') + '#tab-borradores')
+    if not destino.startswith('/'):
+        destino = url_for('perfil') + '#tab-borradores'
+    return redirect(destino)
 
 @app.route('/aprobaciones')
 @docente_required
@@ -2138,6 +2250,21 @@ def aprobar_proyecto(id):
                 motivo_rechazo = NULL
             WHERE id_proyecto = %s;
         """, (id,))
+        cur.execute("SELECT id_usuario, titulo FROM proyectos WHERE id_proyecto = %s;", (id,))
+        datos_proy = cur.fetchone()
+        if datos_proy and datos_proy.get('id_usuario'):
+            cur.execute("""
+                INSERT INTO notificaciones_usuario (
+                    id_usuario, id_proyecto, tipo, titulo, mensaje, motivo, url_destino, leida
+                )
+                VALUES (%s, %s, 'aprobado', %s, %s, NULL, %s, FALSE);
+            """, (
+                datos_proy['id_usuario'],
+                id,
+                datos_proy.get('titulo') or 'Proyecto',
+                'Tu proyecto fue aprobado y ya está publicado.',
+                url_for('ver_proyecto', id=id)
+            ))
         conn.commit()
         flash('¡Proyecto aprobado y publicado correctamente!', 'success')
     except Exception:
@@ -2197,6 +2324,23 @@ def rechazar_proyecto(id):
                 motivo_rechazo = %s
             WHERE id_proyecto = %s;
         """, (motivo, id))
+
+        cur.execute("SELECT id_usuario, titulo FROM proyectos WHERE id_proyecto = %s;", (id,))
+        datos_proy = cur.fetchone()
+        if datos_proy and datos_proy.get('id_usuario'):
+            cur.execute("""
+                INSERT INTO notificaciones_usuario (
+                    id_usuario, id_proyecto, tipo, titulo, mensaje, motivo, url_destino, leida
+                )
+                VALUES (%s, %s, 'rechazado', %s, %s, %s, %s, FALSE);
+            """, (
+                datos_proy['id_usuario'],
+                id,
+                datos_proy.get('titulo') or 'Proyecto',
+                'Tu proyecto fue rechazado y devuelto a borradores.',
+                motivo,
+                url_for('perfil') + '#tab-borradores'
+            ))
         conn.commit()
         flash('Proyecto devuelto a borrador con las observaciones.', 'success')
     except Exception:
@@ -2247,44 +2391,79 @@ def logout():
 @login_required
 def editar_proyecto(id):
     uid = session['user_id']
-    
-    # 1. Capturar datos del formulario
+
     titulo = request.form.get('titulo', '').strip()
-    descripcion = request.form.get('descripcion', '').strip() 
+    descripcion = request.form.get('descripcion', '').strip()
     estado_form = request.form.get('estado', '').strip().lower()
+    enlace_raw = request.form.get('enlace', '').strip()
+
     try:
         id_categoria = int(request.form.get('categoria', ''))
     except ValueError:
         id_categoria = None
 
-    # 2. Validaciones básicas
     if not titulo or not descripcion or id_categoria is None:
         flash('Completa todos los campos obligatorios para editar.', 'danger')
         return redirect(url_for('perfil'))
-        
+
     if len(titulo) > 200:
         flash('El título no puede superar los 200 caracteres.', 'danger')
         return redirect(url_for('perfil'))
-    
-    if estado_form not in ('publicado', 'borrador'): 
+
+    if estado_form not in ('publicado', 'borrador'):
         flash('Selecciona un estado válido.', 'danger')
         return redirect(url_for('perfil'))
 
+    enlace = ''
+    if enlace_raw:
+        enlace = enlace_raw if enlace_raw.lower().startswith(('http://', 'https://')) else 'https://' + enlace_raw
+        if len(enlace) > 500 or ' ' in enlace or '.' not in enlace:
+            flash('El enlace del proyecto no es válido.', 'danger')
+            return redirect(url_for('perfil'))
+
+    imagen = request.files.get('imagen_portada')
+    documento = request.files.get('documento')
+
+    nueva_img_info = None
+    if imagen and imagen.filename:
+        ext_img, tam_img, cab_img = info_archivo(imagen)
+        if ext_img not in EXTENSIONES_PERMITIDAS or not contenido_valido(ext_img, cab_img):
+            flash('La portada debe ser una imagen PNG, JPG o WEBP.', 'danger')
+            return redirect(url_for('perfil'))
+        if tam_img > MAX_IMAGEN:
+            flash('La portada supera los 5 MB.', 'danger')
+            return redirect(url_for('perfil'))
+        nueva_img_info = (imagen, ext_img)
+
+    nuevo_doc_info = None
+    if documento and documento.filename:
+        ext_doc, tam_doc, cab_doc = info_archivo(documento)
+        if ext_doc not in EXTENSIONES_DOCUMENTOS or not contenido_valido(ext_doc, cab_doc):
+            flash(f'"{documento.filename}" no es un PDF o DOCX válido.', 'danger')
+            return redirect(url_for('perfil'))
+        if tam_doc > MAX_TOTAL_DOCUMENTOS:
+            flash('El documento supera los 10 MB permitidos.', 'danger')
+            return redirect(url_for('perfil'))
+        nuevo_doc_info = (documento, ext_doc, tam_doc)
+
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
+    archivos_nuevos_disco = []
+    archivos_viejos_borrar = []
+    confirmado = False
+
     try:
-        # 3. Buscar si el proyecto existe
         cursor.execute("""
-            SELECT p.id_usuario, p.estado, u.id_tipo 
+            SELECT p.id_usuario, p.estado, p.imagen_portada, u.id_tipo
             FROM proyectos p
             JOIN usuarios u ON u.id_usuario = %s
             WHERE p.id_proyecto = %s;
         """, (uid, id))
         resultado = cursor.fetchone()
-        
+
         if not resultado:
             abort(404)
-            
+
         id_autor_proyecto = resultado['id_usuario']
         estado_anterior = (resultado['estado'] or '').strip().lower()
         tipo_usuario_actual = resultado['id_tipo']
@@ -2293,7 +2472,6 @@ def editar_proyecto(id):
         tipo_rol = cursor.fetchone()
         es_admin = tipo_rol and tipo_rol['nombre_tipo'].lower() in ['admin', 'administrador']
 
-        # 4. Validar permisos
         if id_autor_proyecto != uid and not es_admin:
             abort(403)
 
@@ -2302,45 +2480,103 @@ def editar_proyecto(id):
             flash('La categoría seleccionada no es válida.', 'danger')
             return redirect(url_for('perfil'))
 
-        # 5. ACTUALIZAR EL PROYECTO
-        if estado_anterior == 'borrador' and estado_form == 'publicado':
+        ruta_portada_bd = resultado['imagen_portada']
+        if nueva_img_info:
+            archivo_img, ext_img = nueva_img_info
+            nombre_img = f'{uuid.uuid4().hex}.{ext_img}'
+            ruta_disco_img = os.path.join(app.config['UPLOAD_FOLDER'], nombre_img)
+            archivo_img.save(ruta_disco_img)
+            archivos_nuevos_disco.append(ruta_disco_img)
+            if resultado['imagen_portada']:
+                archivos_viejos_borrar.append(resultado['imagen_portada'])
+            ruta_portada_bd = f'uploads/proyectos/{nombre_img}'
+
+        if estado_anterior == 'borrador':
             nuevo_estado = 'Pendiente'
             cursor.execute("""
                 UPDATE proyectos
-                SET titulo = %s, 
-                    descripcion = %s, 
+                SET titulo = %s,
+                    descripcion = %s,
                     id_categoria = %s,
+                    imagen_portada = %s,
                     estado = %s,
                     motivo_rechazo = NULL
                 WHERE id_proyecto = %s;
-            """, (titulo, descripcion, id_categoria, nuevo_estado, id))
-            mensaje_exito = '¡Proyecto actualizado y enviado a revisión del docente!'
+            """, (titulo, descripcion, id_categoria, ruta_portada_bd, nuevo_estado, id))
+            mensaje_exito = '¡Proyecto actualizado y enviado nuevamente a revisión!'
         else:
             nuevo_estado = 'Publicado' if estado_form == 'publicado' else 'Borrador'
             cursor.execute("""
                 UPDATE proyectos
-                SET titulo = %s, 
-                    descripcion = %s, 
+                SET titulo = %s,
+                    descripcion = %s,
                     id_categoria = %s,
+                    imagen_portada = %s,
                     estado = %s
                 WHERE id_proyecto = %s;
-            """, (titulo, descripcion, id_categoria, nuevo_estado, id))
+            """, (titulo, descripcion, id_categoria, ruta_portada_bd, nuevo_estado, id))
             mensaje_exito = '¡Proyecto actualizado correctamente!'
-        
+
+        if nuevo_doc_info:
+            archivo_doc, ext_doc, tam_doc = nuevo_doc_info
+            nombre_doc = f'{uuid.uuid4().hex}.{ext_doc}'
+            ruta_disco_doc = os.path.join(UPLOAD_DOCUMENTOS, nombre_doc)
+            archivo_doc.save(ruta_disco_doc)
+            archivos_nuevos_disco.append(ruta_disco_doc)
+
+            cursor.execute("""
+                SELECT url_archivo
+                FROM documentos_proyecto
+                WHERE id_proyecto = %s
+                  AND LOWER(COALESCE(tipo_documento, '')) <> 'enlace';
+            """, (id,))
+            for fila_doc in cursor.fetchall():
+                if fila_doc.get('url_archivo'):
+                    archivos_viejos_borrar.append(fila_doc['url_archivo'])
+
+            cursor.execute("""
+                DELETE FROM documentos_proyecto
+                WHERE id_proyecto = %s
+                  AND LOWER(COALESCE(tipo_documento, '')) <> 'enlace';
+            """, (id,))
+
+            nombre_original = os.path.basename(archivo_doc.filename.replace('\\', '/'))[:255]
+            cursor.execute("""
+                INSERT INTO documentos_proyecto (id_proyecto, nombre_archivo, url_archivo, tipo_documento, tamano_bytes)
+                VALUES (%s, %s, %s, %s, %s);
+            """, (id, nombre_original, f'uploads/documentos/{nombre_doc}', ext_doc, tam_doc))
+
+        if enlace:
+            cursor.execute("""
+                DELETE FROM documentos_proyecto
+                WHERE id_proyecto = %s
+                  AND LOWER(COALESCE(tipo_documento, '')) = 'enlace';
+            """, (id,))
+            cursor.execute("""
+                INSERT INTO documentos_proyecto (id_proyecto, nombre_archivo, url_archivo, tipo_documento, tamano_bytes)
+                VALUES (%s, 'Enlace del proyecto', %s, 'enlace', NULL);
+            """, (id, enlace))
+
         conn.commit()
+        confirmado = True
+        for ruta_vieja in archivos_viejos_borrar:
+            borrar_archivo_subido(ruta_vieja)
         flash(mensaje_exito, 'success')
-        
+
     except Exception:
         if conn:
             conn.rollback()
+        if not confirmado:
+            for ruta_nueva in archivos_nuevos_disco:
+                if os.path.exists(ruta_nueva):
+                    os.remove(ruta_nueva)
         app.logger.exception('Error al actualizar el proyecto')
         flash('No se pudo actualizar el proyecto.', 'danger')
     finally:
         cursor.close()
         conn.close()
-        
-    return redirect(url_for('perfil'))
 
+    return redirect(url_for('perfil'))
 #=========================================================
 # RUTAS DE ELIMINACIÓN DE PROYECTOS   
 #=========================================================
@@ -2395,39 +2631,17 @@ def soporte():
 
     conn = None
     cursor = None
-    admin_emails = []
-    usuario = None
-    token_resp = uuid.uuid4().hex
 
     try:
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
 
         cursor.execute("""
-            INSERT INTO soporte (usuario_id, asunto, descripcion, estado, token_respuesta)
-            VALUES (%s, %s, %s, 'pendiente', %s)
+            INSERT INTO soporte (usuario_id, asunto, descripcion, estado)
+            VALUES (%s, %s, %s, 'pendiente')
             RETURNING id_soporte;
-        """, (uid, asunto, descripcion, token_resp))
-        id_soporte = cursor.fetchone()['id_soporte']
-
-        cursor.execute("""
-            SELECT nombre_completo, correo_usuario
-            FROM usuarios
-            WHERE id_usuario = %s;
-        """, (uid,))
-        usuario = cursor.fetchone()
-        if not usuario:
-            raise RuntimeError('No se encontró la cuenta asociada a la consulta de soporte.')
-
-        cursor.execute("""
-            SELECT DISTINCT LOWER(BTRIM(correo_usuario)) AS correo
-            FROM usuarios
-            WHERE id_tipo = %s
-              AND activo = TRUE
-              AND correo_usuario IS NOT NULL
-              AND BTRIM(correo_usuario) <> '';
-        """, (ID_TIPO_ADMIN,))
-        admin_emails = [fila['correo'] for fila in cursor.fetchall()]
+        """, (uid, asunto, descripcion))
+        cursor.fetchone()
 
         conn.commit()
     except Exception:
@@ -2442,94 +2656,80 @@ def soporte():
         if conn:
             conn.close()
 
-    if not admin_emails:
-        app.logger.error('No hay correos de administradores activos para notificar la consulta de soporte.')
-        flash(
-            'Tu consulta quedó registrada, pero no se pudo notificar por correo a un administrador.',
-            'warning'
-        )
-        return redirect(url_for('soporte'))
-
-    enlace_respuesta = url_for('responder_soporte_token', token=token_resp, _external=True)
-
-    try:
-        mail.send(Message(
-            subject='Nueva consulta de soporte - ARION',
-            recipients=admin_emails,
-            body=(
-                'Se recibió una nueva consulta de soporte.\n\n'
-                f'Estudiante: {usuario["nombre_completo"]}\n'
-                f'Correo: {usuario["correo_usuario"]}\n'
-                f'Asunto: {asunto}\n\n'
-                f'Mensaje:\n{descripcion}\n\n'
-                f'Responder y actualizar estado aquí: {enlace_respuesta}\n\n'
-                'También puedes revisar la consulta en el panel de administración, sección Reportes.'
-            )
-        ))
-    except Exception:
-        app.logger.exception('La consulta se guardó, pero falló el envío de la notificación por correo.')
-        flash(
-            'Tu consulta quedó registrada, pero no se pudo enviar la notificación por correo.',
-            'warning'
-        )
-    else:
-        flash('¡Tu consulta fue enviada y se notificó a los administradores!', 'success')
-
+    flash('¡Tu consulta fue registrada correctamente!', 'success')
     return redirect(url_for('soporte'))
-
-
-@app.route('/soporte/responder/<token>', methods=['GET', 'POST'])
-@login_required
-def responder_soporte_token(token):
-    if session.get('id_tipo') != ID_TIPO_ADMIN:
-        abort(403)
-
+#=========================================================
+# RUTA DE RESPONDER SOPORTE (SOLO ADMIN)
+#=========================================================
+@app.route('/admin/soporte/<int:id_soporte>/responder', methods=['GET', 'POST'])
+@admin_required
+def responder_soporte(id_soporte):
     consulta = consultar("""
         SELECT s.id_soporte, s.usuario_id, s.asunto, s.descripcion,
                s.estado, s.respuesta, s.fecha_creacion, s.fecha_respuesta,
                u.nombre_completo AS usuario_nombre, u.correo_usuario AS usuario_correo
         FROM soporte s
         JOIN usuarios u ON u.id_usuario = s.usuario_id
-        WHERE s.token_respuesta = %s;
-    """, (token,), uno=True)
+        WHERE s.id_soporte = %s;
+    """, (id_soporte,), uno=True)
 
     if not consulta:
         abort(404)
 
     if request.method == 'POST':
         respuesta_texto = (request.form.get('respuesta') or '').strip()
-        nuevo_estado = (request.form.get('estado') or 'resuelta').strip().lower()
 
-        if nuevo_estado not in ('pendiente', 'en proceso', 'resuelta'):
-            flash('Estado no válido.', 'danger')
-            return redirect(url_for('responder_soporte_token', token=token))
+        if not respuesta_texto:
+            flash('Escribe una respuesta antes de enviar.', 'warning')
+            return redirect(url_for('responder_soporte', id_soporte=id_soporte))
 
-        if respuesta_texto and nuevo_estado == 'pendiente':
-            nuevo_estado = 'resuelta'
+        conn = cur = None
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
 
-        if not respuesta_texto and nuevo_estado == 'resuelta':
-            flash('Escribe una respuesta antes de marcar la consulta como resuelta.', 'warning')
-            return redirect(url_for('responder_soporte_token', token=token))
+            cur.execute("""
+                UPDATE soporte
+                SET respuesta = %s,
+                    estado = 'resuelta',
+                    fecha_respuesta = CURRENT_TIMESTAMP,
+                    respondido_por = %s
+                WHERE id_soporte = %s;
+            """, (
+                respuesta_texto,
+                session['user_id'],
+                consulta['id_soporte']
+            ))
 
-        ejecutar_uno("""
-            UPDATE soporte
-            SET respuesta = %s,
-                estado = %s,
-                fecha_respuesta = CASE WHEN %s <> '' THEN CURRENT_TIMESTAMP ELSE fecha_respuesta END,
-                respondido_por = CASE WHEN %s <> '' THEN %s ELSE respondido_por END
-            WHERE id_soporte = %s;
-        """, (
-            respuesta_texto if respuesta_texto else consulta['respuesta'],
-            nuevo_estado,
-            respuesta_texto,
-            respuesta_texto,
-            session['user_id'],
-            consulta['id_soporte']
-        ))
+            cur.execute("""
+                INSERT INTO notificaciones_usuario (
+                    id_usuario, id_proyecto, tipo, titulo, mensaje, motivo, url_destino, leida
+                )
+                VALUES (%s, NULL, 'soporte', %s, %s, NULL, %s, FALSE);
+            """, (
+                consulta['usuario_id'],
+                f"Consulta: {consulta['asunto']}",
+                'Tu consulta fue resuelta. Entra a ver la respuesta.',
+                url_for('perfil') + '#tab-consultas'
+            ))
 
-        flash('Consulta actualizada correctamente en el sistema.', 'success')
+            conn.commit()
+        except Exception:
+            if conn:
+                conn.rollback()
+            app.logger.exception('Error al responder la consulta y crear notificación')
+            flash('No se pudo guardar la respuesta.', 'danger')
+            return redirect(url_for('responder_soporte', id_soporte=id_soporte))
+        finally:
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
+
+        flash('Respuesta enviada, consulta marcada como resuelta y notificación enviada.', 'success')
         return redirect(url_for('admin_reportes'))
 
     return render_template('responder_soporte.html', consulta=consulta)
+
 if __name__ == '__main__':
     app.run(debug=True)

@@ -2,26 +2,21 @@
 {% block title %}Usuarios{% endblock %}
 
 {% block content %}
-<!-- Encabezado y descripción de las herramientas de gestión de usuarios. -->
 <div class="page-head">
     <h1>Gestión de Usuarios</h1>
     <p class="sub">Administra el acceso, roles y estados de los miembros de la comunidad escolar.</p>
 </div>
 
-{# Filtros: buscar texto y cambiar automáticamente los resultados. #}
 <form class="card toolbar" method="get" data-autosubmit>
     <div class="search">
         <i class="bi bi-search"></i>
         <input type="search" name="q" value="{{ q }}" placeholder="Buscar por nombre, correo o documento...">
     </div>
     <div class="toolbar-right">
-        <select name="rol">
+        <select name="rol" aria-label="Filtrar por rol">
             <option value="">Rol: Todos</option>
-
             {% for r in roles %}
-                <option value="{{ r.id }}"
-                    {{ 'selected' if rol == r.id else '' }}>
-
+                <option value="{{ r.id }}" {{ 'selected' if rol == r.id else '' }}>
                     {% if r.nombre|lower == 'estudiante' %}
                         Estudiante
                     {% elif r.nombre|lower in ['docente', 'profesor'] %}
@@ -31,11 +26,10 @@
                     {% else %}
                         {{ r.nombre }}
                     {% endif %}
-
                 </option>
             {% endfor %}
         </select>
-        <select name="grado">
+        <select name="grado" aria-label="Filtrar por grado">
             <option value="">Grado: Todos</option>
             {% for g in grados %}<option value="{{ g }}" {{ 'selected' if grado == g }}>{{ g }}</option>{% endfor %}
         </select>
@@ -45,18 +39,29 @@
 <section class="card block flush">
     <div class="table-wrap">
         <table class="tbl">
-            <thead><tr><th>Usuario</th><th>Correo institucional</th><th>Rol</th><th>Grado</th><th>Estado</th><th class="c">Acciones</th></tr></thead>
+            <thead>
+                <tr>
+                    <th>Usuario</th>
+                    <th>Correo institucional</th>
+                    <th>Rol</th>
+                    <th>Grado</th>
+                    <th>Estado</th>
+                    <th class="c">Acciones</th>
+                </tr>
+            </thead>
             <tbody>
-            {# Cada usuario genera una fila; los administradores no muestran acciones editables. #}
             {% for u in usuarios %}
                 <tr data-row>
                     <td>
                         <div class="person">
                             <span class="ava {{ 'ava-amber' if loop.index is divisibleby 3 else 'ava-blue' }}">{{ u.nombre|iniciales }}</span>
-                            <div><div class="strong">{{ u.nombre }}</div><div class="t-muted xs">ID:{{ u.id }}</div></div>
+                            <div class="min-w-0">
+                                <div class="strong">{{ u.nombre }}</div>
+                                <div class="t-muted xs">ID:{{ u.id }}</div>
+                            </div>
                         </div>
                     </td>
-                    <td>{{ u.correo }}</td>
+                    <td class="nowrap">{{ u.correo }}</td>
                     <td>
                         <span class="chip {{ 'chip-purple' if u.rol_clave == 'docente' else ('chip-gold' if u.es_admin else 'chip-blue') }}">
                             {% if u.rol|lower == 'estudiante' %}
@@ -70,20 +75,21 @@
                             {% endif %}
                         </span>
                     </td>
-                    <td>{{ u.grado }}</td>
+                    <td class="nowrap">{{ u.grado }}</td>
                     <td><span class="chip {{ 'chip-green' if u.estado == 'Activo' else 'chip-amber' }}">{{ u.estado }}</span></td>
                     <td class="c nowrap">
-                        {# a los administradores no se les edita ni bloquea desde acá #}
                         {% if u.es_admin %}
                         <span class="t-muted xs">—</span>
                         {% else %}
-                        <button class="btn btn-soft btn-sm" data-edit-user data-id="{{ u.id }}" data-nombre="{{ u.nombre }}" data-rol="{{ u.id_tipo }}" data-grado="{{ u.grado }}"> Editar </button>
-                        {% if u.estado == 'Activo' %}
-                        <button class="btn btn-danger btn-sm" data-confirm="¿Bloquear a {{ u.nombre }}?"
-                                data-api="{{ url_for('admin_api_estado_usuario', uid=u.id) }}">Bloquear</button>
-                        {% else %}
-                        <button class="btn btn-success btn-sm" data-api="{{ url_for('admin_api_estado_usuario', uid=u.id) }}">Activar</button>
-                        {% endif %}
+                        <div class="d-inline-flex justify-content-center gap-1">
+                            <button type="button" class="btn btn-soft btn-sm" data-edit-user data-id="{{ u.id }}" data-nombre="{{ u.nombre }}" data-rol="{{ u.id_tipo }}" data-grado="{{ u.grado }}">Editar</button>
+                            {% if u.estado == 'Activo' %}
+                            <button type="button" class="btn btn-danger btn-sm" data-confirm="¿Bloquear a {{ u.nombre }}?"
+                                    data-api="{{ url_for('admin_api_estado_usuario', uid=u.id) }}">Bloquear</button>
+                            {% else %}
+                            <button type="button" class="btn btn-success btn-sm" data-api="{{ url_for('admin_api_estado_usuario', uid=u.id) }}">Activar</button>
+                            {% endif %}
+                        </div>
                         {% endif %}
                     </td>
                 </tr>
@@ -95,7 +101,6 @@
     </div>
     <div class="tbl-foot">
         <span class="t-muted xs">Mostrando {{ usuarios|length }} de {{ total }} usuarios</span>
-        {# Controles de paginación: conservan los filtros al cambiar de página. #}
         <div class="pager">
             {% if pagina > 1 %}<a href="{{ url_for('admin_usuarios', q=q, rol=rol, grado=grado, page=pagina-1) }}">Anterior</a>{% else %}<span class="off">Anterior</span>{% endif %}
             {% for n in range(1, paginas + 1) %}
@@ -106,18 +111,14 @@
     </div>
 </section>
 
-{# Ventana modal: recibe los datos del usuario seleccionado para editarlo. #}
 <dialog id="dlg-user" class="dlg">
     <form id="edit-user-form" data-form-api="" data-method="PUT" data-reload="1">
         <h3>Editar usuario</h3>
         <label>Nombre completo<input name="nombre" required></label>
-        
         <label>Rol
             <select name="rol">
-
                 {% for r in roles_editables %}
                     <option value="{{ r.id }}">
-
                         {% if r.nombre|lower == 'estudiante' %}
                             Estudiante
                         {% elif r.nombre|lower in ['docente', 'profesor'] %}
@@ -127,13 +128,10 @@
                         {% else %}
                             {{ r.nombre }}
                         {% endif %}
-
                     </option>
                 {% endfor %}
-
             </select>
         </label>
-
         <label>Grado<input name="grado" placeholder="Ej: 11-2"></label>
         <div class="dlg-actions">
             <button type="button" class="btn btn-soft" data-close-dialog>Cancelar</button>

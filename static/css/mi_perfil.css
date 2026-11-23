@@ -33,7 +33,7 @@
 
 #perfilTabs .nav-link { 
     color: #6c757d; 
-    padding: .6rem .5rem; 
+    padding: .55rem .65rem; 
     white-space: nowrap; 
 }
 
@@ -91,7 +91,8 @@
 .consulta-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
+    flex-wrap: wrap;
     gap: 0.75rem;
     margin-bottom: 0.5rem;
 }
@@ -100,6 +101,7 @@
     margin: 0;
     font-size: 1.05rem;
     font-weight: 600;
+    word-break: break-word;
 }
 
 .badge-estado {
@@ -108,6 +110,7 @@
     font-size: 0.8rem;
     font-weight: 600;
     text-transform: capitalize;
+    flex-shrink: 0;
 }
 
 .estado-pendiente {
@@ -128,6 +131,7 @@
 .consulta-descripcion {
     margin: 0 0 0.4rem 0;
     color: #334155;
+    word-break: break-word;
 }
 
 .consulta-fecha {
@@ -144,6 +148,7 @@
 .consulta-respuesta-texto {
     margin: 0.35rem 0;
     color: #0f172a;
+    word-break: break-word;
 }
 
 .consulta-sin-respuesta {
@@ -155,4 +160,100 @@
 .consultas-vacio {
     text-align: center;
     padding: 2rem 1rem;
+}
+
+.profile-card-thumb {
+    height: 160px;
+}
+
+.profile-status-badge {
+    font-size: 10px;
+}
+
+.profile-obs-box {
+    z-index: 2;
+    background-color: #fff5f5;
+    border-left: 3px solid #dc3545;
+}
+
+.profile-obs-title {
+    font-size: 0.78rem;
+}
+
+.profile-obs-text {
+    white-space: pre-line;
+    font-size: 0.82rem;
+}
+
+.profile-card-meta {
+    font-size: 11px;
+}
+
+.profile-card-actions {
+    z-index: 2;
+}
+
+.profile-action-btn {
+    height: 34px;
+}
+
+.profile-cover-banner {
+    height: 208px;
+    background: linear-gradient(to right, #0d6efd, #2563eb, #1e40af);
+}
+
+.profile-header-row {
+    margin-top: -64px;
+    z-index: 10;
+}
+
+.profile-avatar-frame {
+    width: 112px;
+    height: 112px;
+}
+
+.profile-meta-label {
+    font-size: 0.72rem;
+}
+
+.new-project-card {
+    min-height: 220px;
+}
+
+.new-project-icon {
+    width: 48px;
+    height: 48px;
+}
+
+.delete-modal-icon {
+    width: 48px;
+    height: 48px;
+}
+
+.notif-badge {
+    font-size: 0.65rem;
+}
+
+.notif-menu {
+    width: min(320px, calc(100vw - 1.5rem));
+    max-height: 75vh;
+    overflow-y: auto;
+}
+
+.notif-item {
+    white-space: normal;
+}
+
+.notif-tag {
+    font-size: 0.7rem;
+}
+
+.notif-motivo {
+    font-size: 0.78rem;
+}
+
+@media (max-width: 575.98px) {
+    .consultas-toolbar .btn {
+        width: 100%;
+    }
 }

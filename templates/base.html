@@ -23,7 +23,7 @@
                 ARION
             </a>
 
-            <div class="d-flex align-items-center gap-2 ms-auto order-md-3">
+           <div class="d-flex align-items-center gap-2 ms-auto order-md-3">
                 {% if not session.get('user_id') %}
                     <a href="{{ url_for('login') }}" class="btn btn-primary rounded-pill px-3 px-md-4 fw-medium btn-auth-header">
                         Acceder
@@ -31,7 +31,7 @@
                 {% else %}
                     {% if session.get('id_tipo') == 2 %}
                     <a href="{{ url_for('aprobaciones') }}" class="btn btn-light border rounded-circle d-inline-flex align-items-center justify-content-center position-relative p-0"
-                       style="width: 38px; height: 38px;" aria-label="Notificaciones de aprobaciones" title="Notificaciones">
+                       style="width: 38px; height: 38px;" aria-label="Notificaciones de aprobaciones" title="Revisiones pendientes">
                         <i class="bi bi-bell fs-6 text-dark"></i>
                         {% if pendientes_revision_count and pendientes_revision_count > 0 %}
                         <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
@@ -39,7 +39,69 @@
                         </span>
                         {% endif %}
                     </a>
+                    {% elif session.get('id_tipo') == 1 %}
+                    <div class="dropdown position-static position-sm-relative">
+                        <button class="btn btn-light border rounded-circle d-inline-flex align-items-center justify-content-center position-relative p-0"
+                                style="width: 38px; height: 38px;"
+                                type="button"
+                                data-bs-toggle="dropdown"
+                                data-bs-auto-close="outside"
+                                aria-expanded="false"
+                                aria-label="Notificaciones de proyectos"
+                                title="Notificaciones">
+                            <i class="bi bi-bell fs-6 text-dark"></i>
+                            {% if notificaciones_count and notificaciones_count > 0 %}
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                                {{ notificaciones_count }}
+                            </span>
+                            {% endif %}
+                        </button>
+
+                        <div class="dropdown-menu dropdown-menu-end shadow-sm border-0 rounded-4 p-2 notif-menu">
+                            <div class="d-flex justify-content-between align-items-center px-2 py-1 border-bottom mb-1">
+                                <span class="fw-bold small text-dark">Notificaciones</span>
+                                {% if notificaciones_usuario %}
+                                <form method="POST" action="{{ url_for('marcar_notificaciones_leidas') }}" class="m-0">
+                                    <input type="hidden" name="destino" value="{{ request.full_path }}">
+                                    <button type="submit" class="btn btn-link p-0 small text-decoration-none">Marcar leídas</button>
+                                </form>
+                                {% endif %}
+                            </div>
+
+                            {% if notificaciones_usuario %}
+                                {% for n in notificaciones_usuario %}
+                                <form method="POST" action="{{ url_for('marcar_notificaciones_leidas') }}" class="m-0 mb-1">
+                                    <input type="hidden" name="id" value="{{ n.id }}">
+                                    <input type="hidden" name="destino" value="{{ n.url }}">
+                                    <button type="submit" class="dropdown-item rounded-3 py-2 px-2 text-start notif-item">
+                                        <div class="d-flex justify-content-between align-items-center gap-2">
+                                            <span class="fw-semibold small text-dark text-truncate">{{ n.titulo }}</span>
+                                            {% if n.tipo == 'soporte' %}
+                                            <span class="badge rounded-pill bg-info-subtle text-info-emphasis notif-tag">Resuelta</span>
+                                            {% elif n.tipo == 'aprobado' %}
+                                            <span class="badge rounded-pill bg-success-subtle text-success notif-tag">Aprobado</span>
+                                            {% else %}
+                                            <span class="badge rounded-pill bg-danger-subtle text-danger notif-tag">Rechazado</span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="small text-muted mt-1">{{ n.mensaje }}</div>
+                                        {% if n.tipo != 'soporte' and n.motivo %}
+                                        <div class="small text-danger mt-1 notif-motivo">
+                                            <strong>Motivo:</strong> {{ n.motivo }}
+                                        </div>
+                                        {% endif %}
+                                    </button>
+                                </form>
+                                {% endfor %}
+                            {% else %}
+                                <div class="text-center text-muted small py-3">
+                                    No tienes notificaciones pendientes.
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
                     {% endif %}
+
                     <a href="{{ url_for('logout') }}" class="btn btn-outline-danger rounded-pill px-3 px-md-4 fw-medium btn-auth-header">
                         Cerrar sesión
                     </a>
