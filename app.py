@@ -1700,6 +1700,10 @@ def datos_formulario(uid):
 def subir():
     uid = session['user_id']
 
+    if session.get('id_tipo') == ID_TIPO_DOCENTE:
+        flash('Los docentes no pueden subir proyectos.', 'warning')
+        return redirect(url_for('aprobaciones'))
+
     if request.method == 'GET':
         return render_template('subir_proyecto.html', **datos_formulario(uid))
 
@@ -1872,7 +1876,6 @@ def subir():
     else:
         flash('¡Proyecto guardado en borradores correctamente!', 'success')
     return redirect(url_for('ver_proyecto', id=id_proyecto))
-
 #=========================================================
 # RUTA DE PERFIL DEL USUARIO
 #=========================================================

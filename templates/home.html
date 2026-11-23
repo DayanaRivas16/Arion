@@ -63,9 +63,11 @@
                     </p>
 
                     <div class="d-flex flex-wrap gap-3 pt-2">
+                        {% if session.get('id_tipo') != 2 %}
                         <a href="{{ url_for('subir') if session.get('user_id') else url_for('login') }}" class="btn btn-primary rounded-pill px-4 py-2 fw-semibold d-inline-flex align-items-center gap-2 shadow-sm">
                             <i class="bi bi-upload"></i> {{ 'Subir mi proyecto' if session.get('user_id') else 'Accede para publicar' }}
                         </a>
+                        {% endif %}
                         <a href="{{ url_for('explorar') }}" class="btn btn-outline-dark border-2 rounded-pill px-4 py-2 fw-semibold d-inline-flex align-items-center gap-2">
                             <i class="bi bi-search"></i> Explorar proyectos
                         </a>
@@ -207,9 +209,11 @@
                 </div>
                 <h3 class="h5 fw-bold text-dark">Aún no hay proyectos publicados</h3>
                 <p class="text-muted small mb-4">Sé la primera persona en compartir uno.</p>
+                {% if session.get('id_tipo') != 2 %}
                 <a href="{{ url_for('subir') if session.get('user_id') else url_for('login') }}" class="btn btn-primary rounded-pill px-4 fw-medium">
                     <i class="bi bi-upload me-2"></i>{{ 'Subir un proyecto' if session.get('user_id') else 'Acccede para publicar' }}
                 </a>
+                {% endif %}
             </div>
             {% endif %}
         </div>
@@ -234,6 +238,7 @@
         </div>
     </section>
 
+    {% if session.get('id_tipo') != 2 %}
     <section class="py-5 bg-white">
         <div class="container-xl">
             <div class="bg-dark text-white rounded-5 p-5 text-center position-relative overflow-hidden shadow">
@@ -249,6 +254,7 @@
             </div>
         </div>
     </section>
+    {% endif %}
 
 </div>
 {% endblock %}

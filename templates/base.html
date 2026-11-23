@@ -123,10 +123,12 @@
                         href="{{ url_for('explorar') }}">Explorar proyectos</a>
                     </li>
                     {% if session.get('user_id') %}
+                    {% if session.get('id_tipo') != 2 %}
                     <li class="nav-item">
                         <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'subir' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
                         href="{{ url_for('subir') }}">Subir proyecto</a>
                     </li>
+                    {% endif %}
                     {% if session.get('id_tipo') == 2 %}
                     <li class="nav-item">
                         <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'aprobaciones' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
@@ -219,7 +221,9 @@
                         <li class="nav-item"><a href="{{ url_for('home') }}" class="nav-link p-0 text-muted small text-hover-dark">Inicio</a></li>
                         <li class="nav-item"><a href="{{ url_for('explorar') }}" class="nav-link p-0 text-muted small text-hover-dark">Explorar proyectos</a></li>
                         {% if session.get('user_id') %}
+                        {% if session.get('id_tipo') != 2 %}
                         <li class="nav-item"><a href="{{ url_for('subir') }}" class="nav-link p-0 text-muted small text-hover-dark">Subir proyecto</a></li>
+                        {% endif %}
                         <li class="nav-item"><a href="{{ url_for('recursos') }}" class="nav-link p-0 text-muted small text-hover-dark">Recursos</a></li>
                         {% endif %}
                     </ul>
