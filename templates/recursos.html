@@ -7,6 +7,8 @@
 {% endblock %}
 
 {% block content %}
+{% set es_docente = (session.get('id_tipo') == 2) %}
+
 <div class="container py-5">
     <!-- Encabezado de la sección -->
     <div class="text-center mb-5">
@@ -23,7 +25,7 @@
                 <div class="card-body p-4 d-flex flex-column">
                     <div class="badge bg-primary-subtle text-primary align-self-start mb-3 px-3 py-2 rounded-pill fw-semibold">Manual</div>
                     <h5 class="card-title fw-bold">Manual de Usuario de Arion</h5>
-                    <p class="card-text text-muted small flex-grow-1">Documentación oficial completa sobre cómo navegar por la plataforma, publicar proyectos, gestionar tu perfil institucional y utilizar las herramientas colaborativas.</p>
+                    <p class="card-text text-muted small flex-grow-1">Documentación oficial completa sobre cómo navegar por la plataforma, {% if es_docente %}revisar y aprobar proyectos, gestionar tu perfil institucional y consultar el soporte{% else %}publicar proyectos, gestionar tu perfil institucional y utilizar las herramientas colaborativas{% endif %}.</p>
 
                     <!-- ================================================================= -->
                     <!-- agregar el documento                                              -->
@@ -35,16 +37,21 @@
             </div>
         </div>
 
-        <!-- Recurso 2: Guía de Publicación -->
+        <!-- Recurso 2: Guía según el rol -->
         <div class="col-md-4 resource-item" data-category="guia">
             <div class="card h-100 border-0 shadow-sm rounded-4 resource-card">
                 <div class="card-body p-4 d-flex flex-column">
                     <div class="badge bg-success-subtle text-success align-self-start mb-3 px-3 py-2 rounded-pill fw-semibold">Guía</div>
+                    {% if es_docente %}
+                    <h5 class="card-title fw-bold">Guía para Revisar Proyectos</h5>
+                    <p class="card-text text-muted small flex-grow-1">Paso a paso detallado sobre cómo consultar los proyectos asignados en Revisiones, abrir su vista completa, aprobarlos o devolverlos a borrador con observaciones.</p>
+                    {% else %}
                     <h5 class="card-title fw-bold">Guía para Publicar Proyectos</h5>
                     <p class="card-text text-muted small flex-grow-1">Paso a paso detallado sobre cómo estructurar el título, la descripción, seleccionar la categoría correcta y subir archivos adjuntos exitosamente.</p>
+                    {% endif %}
 
                     <!-- ================================================================= -->
-                    <!-- abrir guía interactiva de publicación                               -->
+                    <!-- abrir guía interactiva según rol                                  -->
                     <!-- ================================================================= -->
                     <button type="button"
                             class="btn btn-outline-primary mt-3 rounded-3 w-100"
@@ -58,10 +65,90 @@
 
     </div>
 
-    <!-- Modal: Guía para Publicar Proyectos -->
+    <!-- Modal: Guía interactiva -->
     <div class="modal fade" id="guiaPublicarModal" tabindex="-1" aria-labelledby="guiaPublicarModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content border-0 rounded-4 shadow">
+                {% if es_docente %}
+                <div class="modal-header border-bottom px-4 py-3">
+                    <div>
+                        <span class="badge bg-success-subtle text-success rounded-pill px-3 py-1 mb-1">Guía paso a paso</span>
+                        <h5 class="modal-title fw-bold text-dark m-0" id="guiaPublicarModalLabel">Cómo gestionar Revisiones en Arion</h5>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+
+                <div class="modal-body p-4">
+                    <p class="text-muted small mb-4">
+                        Desde el panel de <strong>Revisiones</strong> puedes consultar los proyectos pendientes asignados a tu cargo, revisar su contenido a detalle y tomar una decisión académica.
+                    </p>
+
+                    <div class="guia-pasos d-flex flex-column gap-3 mb-4">
+                        <div class="guia-paso-item">
+                            <span class="guia-paso-num">1</span>
+                            <div>
+                                <h6 class="fw-bold text-dark mb-1">Ubica tus proyectos pendientes</h6>
+                                <p class="text-muted small mb-0">
+                                    Ingresa a <strong>Revisiones</strong> (desde la barra superior o el aviso de pendientes). Allí verás únicamente los proyectos enviados por estudiantes donde figuras como <strong>profesor a cargo</strong>.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="guia-paso-item">
+                            <span class="guia-paso-num">2</span>
+                            <div>
+                                <h6 class="fw-bold text-dark mb-1">Abre y revisa con "Ver proyecto"</h6>
+                                <p class="text-muted small mb-0">
+                                    Usa la opción para <strong>ver el proyecto</strong> completo y examinar su descripción, categoría, integrantes, documentos adjuntos o enlaces antes de aprobar o rechazar.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="guia-paso-item">
+                            <span class="guia-paso-num">3</span>
+                            <div>
+                                <h6 class="fw-bold text-dark mb-1">Aprueba para publicar</h6>
+                                <p class="text-muted small mb-0">
+                                    Si el proyecto cumple con los criterios académicos, haz clic en <strong>Aprobar</strong> para que cambie a estado <strong>Publicado</strong> y quede visible en la plataforma.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="guia-paso-item">
+                            <span class="guia-paso-num">4</span>
+                            <div>
+                                <h6 class="fw-bold text-dark mb-1">Rechaza o devuelve a borrador con observaciones</h6>
+                                <p class="text-muted small mb-0">
+                                    Si requiere correcciones, elige <strong>Devolver a borrador</strong> (o rechazar) y escribe el <strong>motivo u observaciones</strong> para que el estudiante sepa qué ajustar y vuelva a enviarlo.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Ejemplo breve -->
+                    <div class="guia-ejemplo-box rounded-4 p-3 p-sm-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="fw-bold small text-dark">
+                                <i class="fas fa-lightbulb text-warning me-2"></i>Ejemplo de flujo de revisión
+                            </span>
+                            <span class="badge bg-white text-secondary border rounded-pill">Ejemplo</span>
+                        </div>
+                        <ul class="list-unstyled small text-secondary mb-0 d-flex flex-column gap-1">
+                            <li><strong>Proyecto en cola:</strong> Sistema de Alarma Visual · Grado <code>11°</code></li>
+                            <li><strong>Revisión:</strong> Abres la vista del proyecto y verificas documentación y propuesta.</li>
+                            <li><strong>Si está completo:</strong> <strong>Aprobar</strong> → pasa a <strong>Publicado</strong>.</li>
+                            <li><strong>Si necesita cambios:</strong> <strong>Devolver a borrador</strong> con observaciones claras (ej. <em>"Completar anexos y corregir descripción"</em>).</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="modal-footer border-top px-4 py-3 d-flex justify-content-between">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Cerrar</button>
+                    <a href="{{ url_for('aprobaciones') }}" class="btn btn-primary rounded-pill px-4">
+                        Ir a Revisiones
+                    </a>
+                </div>
+                {% else %}
                 <div class="modal-header border-bottom px-4 py-3">
                     <div>
                         <span class="badge bg-success-subtle text-success rounded-pill px-3 py-1 mb-1">Guía paso a paso</span>
@@ -141,6 +228,7 @@
                         Ir a Subir Proyecto
                     </a>
                 </div>
+                {% endif %}
             </div>
         </div>
     </div>
