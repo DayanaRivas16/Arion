@@ -14,7 +14,7 @@ from urllib.parse import urlsplit
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY') or 'clave-dev-temporal-cambia-esto-en-produccion'
+app.secret_key = os.getenv('SECRET_KEY')
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = False
 
@@ -1388,6 +1388,14 @@ def explorar():
 @app.route('/acerca-de')
 def acerca_de():
     return render_template('acerca_de.html')
+
+@app.route('/terminos-y-condiciones')
+def terminos_condiciones():
+    return render_template('terminos-y-condiciones.html')
+
+@app.route('/politica-de-privacidad')
+def politica_privacidad():
+    return render_template('politica-de-privacidad.html')
 
 # ==========================================================
 # GUARDAR ETIQUETAS DEL PROYECTO

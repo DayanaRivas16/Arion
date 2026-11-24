@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+
+{% block title %}Política de Privacidad - ARION{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/legal.css') }}">
+{% endblock %}
+
+{% block content %}
+<article class="legal-page mx-auto">
+    <header class="legal-header rounded-5 p-4 p-md-5 mb-4">
+        <span class="d-inline-flex align-items-center gap-2 bg-primary-subtle text-primary small fw-semibold px-3 py-2 rounded-pill mb-3">
+            <i class="bi bi-shield-check"></i> Información legal
+        </span>
+        <h1 class="fw-black text-dark display-6 mb-2">Política de Privacidad y Tratamiento de Datos</h1>
+        <p class="text-muted mb-0">Plataforma ARION <span class="legal-separator">·</span> Última actualización: Noviembre de 2026</p>
+    </header>
+
+    <div class="legal-content bg-white rounded-5 border shadow-sm p-4 p-md-5">
+        <p class="text-muted mb-4">
+            En cumplimiento de la Ley 1581 de 2012 y el Decreto 1377 de 2013 sobre Protección de Datos Personales en Colombia, la Institución Educativa Sagrada Familia de Palmira informa cómo se recolectan y protegen los datos en la plataforma ARION:
+        </p>
+
+        <section class="legal-section">
+            <h2><span>1</span> Datos que Recolectamos</h2>
+            <p>Para gestionar el acceso y la publicación de proyectos, ARION recolecta únicamente datos básicos de identificación académica:</p>
+            <ul>
+                <li>Nombre completo del estudiante.</li>
+                <li>Grado o grupo escolar.</li>
+                <li>Correo electrónico institucional.</li>
+                <li>Contenido y archivos asociados a los proyectos subidos.</li>
+            </ul>
+        </section>
+
+        <section class="legal-section">
+            <h2><span>2</span> Finalidad del Tratamiento de Datos</h2>
+            <p>Los datos recopilados se utilizan exclusivamente para:</p>
+            <ul>
+                <li>Crear y administrar las cuentas de los estudiantes en la plataforma.</li>
+                <li>Asociar correctamente cada proyecto con su autor y categoría correspondiente.</li>
+                <li>Facilitar el seguimiento académico por parte de los docentes y directivos de la institución.</li>
+            </ul>
+        </section>
+
+        <section class="legal-section">
+            <h2><span>3</span> Protección de Menores de Edad</h2>
+            <p>Dado que los usuarios principales son niños, niñas y adolescentes, el tratamiento de sus datos se realiza bajo el principio de interés superior del menor y dentro del marco educativo autorizado por la institución y los padres de familia o acudientes al momento de la matrícula.</p>
+        </section>
+
+        <section class="legal-section">
+            <h2><span>4</span> Confidencialidad y No Divulgación</h2>
+            <p>La Institución Educativa Sagrada Familia de Palmira garantiza que los datos personales de los estudiantes nunca serán vendidos, alquilados ni compartidos con terceros con fines comerciales o publicitarios. Se aplican medidas técnicas básicas para proteger la información contra accesos no autorizados.</p>
+        </section>
+
+        <section class="legal-section mb-0">
+            <h2><span>5</span> Derechos de los Titulares (ARCO)</h2>
+            <p>Los estudiantes, a través de sus padres o acudientes, tienen derecho a conocer, actualizar, rectificar o solicitar la eliminación de sus datos personales y proyectos de la plataforma. Para ejercer estos derechos, pueden comunicarse directamente con la coordinación académica o la administración de la plataforma en la sede principal de la institución.</p>
+        </section>
+    </div>
+</article>
+{% endblock %}
