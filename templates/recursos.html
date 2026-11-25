@@ -27,10 +27,10 @@
                     <h5 class="card-title fw-bold">Manual de Usuario de Arion</h5>
                     <p class="card-text text-muted small flex-grow-1">Documentación oficial completa sobre cómo navegar por la plataforma, {% if es_docente %}revisar y aprobar proyectos, gestionar tu perfil institucional y consultar el soporte{% else %}publicar proyectos, gestionar tu perfil institucional y utilizar las herramientas colaborativas{% endif %}.</p>
 
-                    <!-- ================================================================= -->
-                    <!-- agregar el documento                                              -->
-                    <!-- ================================================================= -->
-                    <a href="#" class="btn btn-primary mt-3 rounded-3 w-100" target="_blank">
+                    <a href="{{ url_for('static', filename='documentos/Manual_de_Usuario_Arion-Estudiante.docx') }}"
+                       class="btn btn-primary mt-3 rounded-3 w-100"
+                       target="_blank"
+                       rel="noopener">
                         <i class="fas fa-book-open me-2"></i>Leer Manual
                     </a>
                 </div>

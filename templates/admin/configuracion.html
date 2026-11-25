@@ -138,15 +138,7 @@
                         <input type="text" id="catDescripcion" name="descripcion" class="form-control mb-3"
                                maxlength="300" placeholder="Qué tipo de proyectos incluye">
 
-                        <span class="cfg-label d-block">Color</span>
-                        <div class="d-flex flex-wrap gap-2 mb-4">
-                            {% for col in colores %}
-                                <label class="cfg-swatch-label">
-                                    <input type="radio" name="color" value="{{ col }}" {{ 'checked' if loop.first }}>
-                                    <span class="cfg-swatch" data-color="{{ col }}"></span>
-                                </label>
-                            {% endfor %}
-                        </div>
+                        
 
                         <div class="d-flex gap-2 justify-content-end">
                             <button type="button" class="btn btn-light fw-semibold" id="btnCerrarCategoria">Cancelar</button>
