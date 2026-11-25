@@ -109,6 +109,8 @@ def admin_required(f):
 # Conserva la validación que ya usaban las rutas administrativas.
 admin_required_inicial = admin_required
 
+
+
 def api_seguro(f):
     """Si algo revienta en una ruta /admin/api/ devolvemos JSON con el error, para que el
     JS lo muestre en el aviso en vez de recibir la página de error de Flask."""
@@ -400,19 +402,6 @@ def ejecutar(sql, params=None):
     finally:
         conn.close()
 
-def registrar_revision(id_proyecto, accion, comentario=None):
-    """Deja constancia en el historial de quién revisó el proyecto y qué decidió."""
-    try:
-        ejecutar("""
-            INSERT INTO historial_revisiones
-                (id_proyecto, id_revisor, id_tipo_revisor, accion, comentario, numero_revision)
-            VALUES (%s, %s, %s, %s, %s,
-                    (SELECT COUNT(*) + 1 FROM historial_revisiones WHERE id_proyecto = %s))
-        """, (id_proyecto, session['user_id'], session.get('id_tipo'),
-              accion, comentario, id_proyecto))
-    except Exception:
-        # si el historial falla, la aprobación o el rechazo igual se queda guardado
-        app.logger.exception('No se pudo guardar la revisión en el historial')
 
 # =====================================================================
 # Funciones auxiliares para proyectos
@@ -674,7 +663,7 @@ def register():
 @app.route('/login/google')
 def google_login(): #inica el proceso de autenticación con Google
     redirect_uri = url_for('google_callback', _external=True)
-    return google.authorize_redirect(redirect_uri)
+    return google.authorize_redirect(redirect_uri, prompt='select_account')
 
 # Valida la respuesta de Google y crea o inicia la sesión.
 @app.route('/google/callback')
@@ -890,25 +879,16 @@ def home():
 def explorar():
     filas = []
     autores = []
-    categorias = []
     conn = None
     cursor = None
-    autenticado = 'user_id' in session
-    ordenes = {
-        'recientes': 'p.fecha_creacion DESC NULLS LAST, p.id_proyecto DESC',
-        'vistas': 'COALESCE(p.vistas_count, 0) DESC, p.fecha_creacion DESC NULLS LAST, p.id_proyecto DESC',
-        'valorados': 'p.calificacion DESC NULLS LAST, p.fecha_creacion DESC NULLS LAST, p.id_proyecto DESC',
-        'gustados': 'COALESCE(p.likes_count, 0) DESC, p.fecha_creacion DESC NULLS LAST, p.id_proyecto DESC',
-    }
-    orden = request.args.get('orden', 'recientes')
-    if orden not in ordenes or (not autenticado and orden != 'recientes'):
-        orden = 'recientes'
-
+    admin_emails = []
+    usuario = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
 
-        cursor.execute(f"""
+
+        cursor.execute("""
             SELECT p.id_proyecto AS id,
                    p.titulo,
                    p.descripcion,
@@ -924,7 +904,7 @@ def explorar():
             LEFT JOIN categorias c ON c.id_categoria = p.id_categoria
             LEFT JOIN usuarios u ON u.id_usuario = p.id_usuario
             WHERE LOWER(p.estado) = 'publicado'
-            ORDER BY {ordenes[orden]};
+            ORDER BY p.fecha_creacion DESC;
         """)
         filas = cursor.fetchall()
 
@@ -938,21 +918,15 @@ def explorar():
         """)
         autores = cursor.fetchall()
 
-        cursor.execute("""
-            SELECT id_categoria AS id, nombre_categoria AS nombre
-            FROM categorias
-            ORDER BY nombre_categoria ASC;
-        """)
-        categorias = cursor.fetchall()
-
     except Exception:
-        app.logger.exception('Error cargando proyectos, autores o categorías')
+        app.logger.exception('Error cargando proyectos o autores')
         flash('No se pudieron cargar los proyectos.', 'danger')
     finally:
         if cursor: cursor.close()
         if conn: conn.close()
 
     proyectos = []
+    autenticado = 'user_id' in session
     for f in filas:
         iniciales = ''.join(p[0] for p in f['autor'].split()[:2]).upper() or '?'
         descripcion = (f['descripcion'] or '').strip()
@@ -971,8 +945,7 @@ def explorar():
             'date': f['fecha_creacion'].timestamp() if f['fecha_creacion'] else 0,
         })
 
-    return render_template('explorar_proyectos.html', proyectos=proyectos, autores=autores,
-                           categorias=categorias, orden=orden)
+    return render_template('explorar_proyectos.html', proyectos=proyectos, autores=autores)
 
 # Muestra información sobre el equipo y la plataforma.
 @app.route('/acerca-de')
@@ -1891,155 +1864,6 @@ def admin_dashboard():
     return render_template('admin/dashboard.html',
                             stats=stats, variacion=variacion, pendientes=pendientes)
 
-@app.route('/proyectos/<int:id>/historial')
-@login_required
-def historial_proyecto(id):
-    conn = get_db_connection()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        cur.execute("""
-            SELECT h.numero_revision, h.accion, h.comentario,
-                   h.fecha_revision AS fecha,
-                   u.nombre_completo AS revisor,
-                   t.nombre_tipo AS rol
-            FROM historial_revisiones h
-            LEFT JOIN usuarios u ON u.id_usuario = h.id_revisor
-            LEFT JOIN tipos_usuario t ON t.id_tipo = h.id_tipo_revisor
-            WHERE h.id_proyecto = %s
-            ORDER BY h.fecha_revision ASC;
-        """, (id,))
-        filas = cur.fetchall()
-    finally:
-        cur.close()
-        conn.close()
-
-    for f in filas:
-        f['fecha'] = f['fecha'].isoformat()
-    return jsonify(filas)
-
-@app.route('/admin/historial')
-@admin_required_inicial
-def historial_revisiones():
-    filtro = request.args.get('accion', '')
-    id_categoria = request.args.get('categoria', type=int)
-
-    # Las fechas llegan como texto AAAA-MM-DD; si vienen mal escritas se ignoran
-    def leer_fecha(nombre):
-        try:
-            return datetime.strptime(request.args.get(nombre, ''), '%Y-%m-%d').date()
-        except ValueError:
-            return None
-    desde = leer_fecha('desde')
-    hasta = leer_fecha('hasta')
-
-    sql = """
-        SELECT * FROM (
-            SELECT h.id_revision, h.accion, h.comentario, h.fecha_revision,
-                   p.titulo, p.imagen_portada, p.grado, p.id_categoria,
-                   c.nombre_categoria AS categoria,
-                   autor.nombre_completo AS autor,
-                   u.nombre_completo AS revisor,
-                   t.nombre_tipo AS rol,
-                   COUNT(*) FILTER (WHERE h.accion = 'Observado')
-                       OVER (PARTITION BY h.id_proyecto
-                             ORDER BY h.fecha_revision, h.id_revision) AS n_observacion
-            FROM historial_revisiones h
-            JOIN proyectos p ON p.id_proyecto = h.id_proyecto
-            LEFT JOIN categorias c ON c.id_categoria = p.id_categoria
-            LEFT JOIN usuarios autor ON autor.id_usuario = p.id_usuario
-            LEFT JOIN usuarios u ON u.id_usuario = h.id_revisor
-            LEFT JOIN tipos_usuario t ON t.id_tipo = h.id_tipo_revisor
-        ) x
-    """
-    # Cada filtro suma una condición; los valores van siempre en params
-    condiciones, params = [], []
-    if filtro in ('Aprobado', 'Observado', 'Rechazado'):
-        condiciones.append("x.accion = %s")
-        params.append(filtro)
-    if id_categoria:
-        condiciones.append("x.id_categoria = %s")
-        params.append(id_categoria)
-    if desde:
-        condiciones.append("x.fecha_revision::date >= %s")
-        params.append(desde)
-    if hasta:
-        condiciones.append("x.fecha_revision::date <= %s")
-        params.append(hasta)
-    if condiciones:
-        sql += " WHERE " + " AND ".join(condiciones)
-    sql += " ORDER BY x.fecha_revision DESC"
-
-    historial = consultar(sql, params)
-    categorias = consultar(
-        "SELECT id_categoria, nombre_categoria FROM categorias ORDER BY nombre_categoria")
-
-    return render_template('admin/historial_revisiones.html',
-                           historial=historial, categorias=categorias,
-                           filtro_accion=filtro, filtro_categoria=id_categoria,
-                           desde=desde, hasta=hasta)
-
-@app.route('/proyectos/<int:id>/revisar', methods=['POST'])
-@login_required
-def revisar_proyecto(id):
-    accion = request.form.get('accion')
-    comentario = request.form.get('comentario', '').strip()
-
-    if accion not in ('Aprobado', 'Observado', 'Rechazado'):
-        flash('Acción no válida.', 'danger')
-        return redirect(request.referrer or url_for('home'))
-
-    if accion != 'Aprobado' and not comentario:
-        flash('Debes escribir un comentario.', 'danger')
-        return redirect(request.referrer or url_for('home'))
-
-    conn = get_db_connection()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        # Quién es el usuario y qué rol tiene
-        cur.execute("SELECT id_tipo FROM usuarios WHERE id_usuario = %s",
-                    (session['user_id'],))
-        id_tipo = cur.fetchone()['id_tipo']
-
-        # Ajusta estos números a los de la tabla tipos_usuario
-        ES_PROFESOR, ES_ADMIN = 2, 3
-        if id_tipo not in (ES_PROFESOR, ES_ADMIN):
-            flash('No tienes permiso para revisar proyectos.', 'danger')
-            return redirect(url_for('home'))
-
-        # El profesor solo revisa sus proyectos; el admin revisa todos
-        if id_tipo == ES_PROFESOR:
-            cur.execute("""SELECT 1 FROM proyectos
-                           WHERE id_proyecto = %s AND id_profesor = %s""",
-                        (id, session['user_id']))
-            if not cur.fetchone():
-                flash('Este proyecto no está a tu cargo.', 'danger')
-                return redirect(url_for('home'))
-
-        cur.execute("SELECT COUNT(*) AS total FROM historial_revisiones WHERE id_proyecto = %s", (id,))
-        numero = cur.fetchone()['total'] + 1
-
-        estado_nuevo = {'Aprobado': 'Publicado',
-                        'Observado': 'Observado',
-                        'Rechazado': 'Rechazado'}[accion]
-
-        cur.execute("""
-            INSERT INTO historial_revisiones
-                (id_proyecto, id_revisor, id_tipo_revisor, accion, comentario, numero_revision)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (id, session['user_id'], id_tipo, accion, comentario or None, numero))
-
-        cur.execute("UPDATE proyectos SET estado = %s WHERE id_proyecto = %s",
-                    (estado_nuevo, id))
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        cur.close()
-        conn.close()
-
-    return redirect(request.referrer or url_for('home'))
-
 # Lista los proyectos para su gestión administrativa.
 @app.route('/admin/proyectos')
 @admin_required_inicial
@@ -2169,7 +1993,6 @@ def admin_aprobar_proyecto(id):
     """, (id,))
 
     if filas:
-        registrar_revision(id, 'Aprobado')
         flash('Proyecto aprobado y publicado.', 'success')
     else:
         flash('Ese proyecto ya no está pendiente.', 'warning')
@@ -2196,7 +2019,6 @@ def admin_rechazar_proyecto(id):
     """, (motivo, id))
 
     if filas:
-        registrar_revision(id, 'Rechazado', motivo)
         flash('Proyecto rechazado.', 'success')
     else:
         flash('Ese proyecto ya no está pendiente.', 'warning')
@@ -2604,47 +2426,6 @@ def admin_api_estado_usuario(uid):
         return _no('Usuario no encontrado.')
     return _ok(f'{fila["nombre_completo"]} ahora está {"activo" if fila["activo"] else "bloqueado"}.')
 
-# Nombra o quita a un administrador.
-@app.route('/admin/api/usuarios/<int:uid>/admin', methods=['POST'])
-@admin_required_inicial
-@api_seguro
-def admin_api_cambiar_admin(uid):
-    d = request.get_json(silent=True) or {}
-    accion = d.get('accion')
-
-    # Nadie se cambia el rol a sí mismo: lo hace otro administrador
-    if uid == session.get('user_id'):
-        return _no('No puedes cambiar tu propio rol. Pídeselo a otro administrador.', 400)
-
-    usuario = consultar("""SELECT nombre_completo, id_tipo, activo
-                           FROM usuarios WHERE id_usuario = %s""", (uid,), uno=True)
-    if not usuario:
-        return _no('Usuario no encontrado.')
-
-    if accion == 'dar':
-        if usuario['id_tipo'] == ID_TIPO_ADMIN:
-            return _no('Esa persona ya es administradora.', 400)
-        if not usuario['activo']:
-            return _no('Activa la cuenta antes de nombrarla administradora.', 400)
-        ejecutar("UPDATE usuarios SET id_tipo = %s WHERE id_usuario = %s",
-                 (ID_TIPO_ADMIN, uid))
-        return _ok(f'{usuario["nombre_completo"]} ahora es administrador.')
-
-    if accion == 'quitar':
-        if usuario['id_tipo'] != ID_TIPO_ADMIN:
-            return _no('Esa persona no es administradora.', 400)
-        try:
-            nuevo_rol = int(d.get('rol'))
-        except (TypeError, ValueError):
-            nuevo_rol = None
-        if nuevo_rol not in (ID_TIPO_ESTUDIANTE, ID_TIPO_DOCENTE):
-            return _no('Elige a qué rol vuelve esa persona.', 400)
-        ejecutar("UPDATE usuarios SET id_tipo = %s WHERE id_usuario = %s",
-                 (nuevo_rol, uid))
-        return _ok(f'{usuario["nombre_completo"]} ya no es administrador.')
-
-    return _no('Acción no válida.', 400)
-
 # Permite responder una consulta y notificar al usuario.
 @app.route('/admin/soporte/<int:id_soporte>/responder', methods=['GET', 'POST'])
 @admin_required
@@ -2828,7 +2609,6 @@ def aprobar_proyecto(id):
                 url_for('ver_proyecto', id=id)
             ))
         conn.commit()
-        registrar_revision(id, 'Aprobado')
         flash('¡Proyecto aprobado y publicado correctamente!', 'success')
     except Exception:
         if conn:
@@ -2902,7 +2682,6 @@ def rechazar_proyecto(id):
                 url_for('perfil') + '#tab-borradores'
             ))
         conn.commit()
-        registrar_revision(id, 'Observado', motivo)
         flash('Proyecto devuelto a borrador con las observaciones.', 'success')
     except Exception:
         if conn:
