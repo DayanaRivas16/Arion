@@ -16,7 +16,7 @@
 </head>
 <body class="bg-light d-flex flex-column min-vh-screen">
 
-<!-- Navegación principal: adapta el menú según si existe una sesión iniciada. -->
+<!-- Navegación principal: adapta el menú según si existe una sesión iniciada y el rol del usuario. -->
     <header class="navbar navbar-expand-md navbar-light bg-white border-b sticky-top shadow-sm py-2">
         <div class="container-xl">
             <a class="navbar-brand fw-black fs-3 text-dark tracking-tight" href="{{ url_for('home') }}">
@@ -117,28 +117,46 @@
                         <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'explorar' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
                         href="{{ url_for('explorar') }}">Explorar proyectos</a>
                     </li>
+
                     {% if session.get('user_id') %}
-                    {% if session.get('id_tipo') != 2 %}
-                    <li class="nav-item">
-                        <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'subir' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
-                        href="{{ url_for('subir') }}">Subir proyecto</a>
-                    </li>
+                        {% if session.get('id_tipo') == 1 %}
+                        <li class="nav-item">
+                            <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'subir' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
+                            href="{{ url_for('subir') }}">Subir proyecto</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'perfil' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
+                            href="{{ url_for('perfil') }}">Mi perfil</a>
+                        </li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'recursos' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
+                            href="{{ url_for('recursos') }}">Recursos</a>
+                        </li>
+                        {% elif session.get('id_tipo') == 2 %}
+                        <li class="nav-item">
+                            <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'aprobaciones' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
+                            href="{{ url_for('aprobaciones') }}">Revisiones</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'perfil' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
+                            href="{{ url_for('perfil') }}">Mi perfil</a>
+                        </li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'recursos' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
+                            href="{{ url_for('recursos') }}">Recursos</a>
+                        </li>
+                        {% elif session.get('id_tipo') == 3 %}
+                        <li class="nav-item">
+                            <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'admin_dashboard' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
+                            href="{{ url_for('admin_dashboard') }}">Panel admin</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'perfil' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
+                            href="{{ url_for('perfil') }}">Mi perfil</a>
+                        </li>
+                        {% endif %}
                     {% endif %}
-                    {% if session.get('id_tipo') == 2 %}
-                    <li class="nav-item">
-                        <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'aprobaciones' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
-                           href="{{ url_for('aprobaciones') }}">Revisiones</a>
-                    </li>
-                    {% endif %}
-                    <li class="nav-item">
-                        <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'perfil' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
-                        href="{{ url_for('perfil') }}">Mi perfil</a>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'recursos' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
-                        href="{{ url_for('recursos') }}">Recursos</a>
-                    </li>
-                    {% endif %}
+
                     <li class="nav-item">
                         <a class="nav-link fw-medium pb-1 {% if request.endpoint == 'acerca_de' %}text-dark border-bottom border-primary border-2{% else %}text-secondary{% endif %}"
                         href="{{ url_for('acerca_de') }}">Acerca de</a>
@@ -216,18 +234,23 @@
                         <li class="nav-item"><a href="{{ url_for('home') }}" class="nav-link p-0 text-muted small text-hover-dark">Inicio</a></li>
                         <li class="nav-item"><a href="{{ url_for('explorar') }}" class="nav-link p-0 text-muted small text-hover-dark">Explorar proyectos</a></li>
                         {% if session.get('user_id') %}
-                        {% if session.get('id_tipo') != 2 %}
-                        <li class="nav-item"><a href="{{ url_for('subir') }}" class="nav-link p-0 text-muted small text-hover-dark">Subir proyecto</a></li>
+                            {% if session.get('id_tipo') == 1 %}
+                            <li class="nav-item"><a href="{{ url_for('subir') }}" class="nav-link p-0 text-muted small text-hover-dark">Subir proyecto</a></li>
+                            <li class="nav-item"><a href="{{ url_for('perfil') }}" class="nav-link p-0 text-muted small text-hover-dark">Mi perfil</a></li>
+                            <li class="nav-item"><a href="{{ url_for('recursos') }}" class="nav-link p-0 text-muted small text-hover-dark">Recursos</a></li>
+                            {% elif session.get('id_tipo') == 2 %}
+                            <li class="nav-item"><a href="{{ url_for('aprobaciones') }}" class="nav-link p-0 text-muted small text-hover-dark">Revisiones</a></li>
+                            <li class="nav-item"><a href="{{ url_for('perfil') }}" class="nav-link p-0 text-muted small text-hover-dark">Mi perfil</a></li>
+                            <li class="nav-item"><a href="{{ url_for('recursos') }}" class="nav-link p-0 text-muted small text-hover-dark">Recursos</a></li>
+                            {% endif %}
                         {% endif %}
-                        <li class="nav-item"><a href="{{ url_for('recursos') }}" class="nav-link p-0 text-muted small text-hover-dark">Recursos</a></li>
-                        {% endif %}
+                        <li class="nav-item"><a href="{{ url_for('acerca_de') }}" class="nav-link p-0 text-muted small text-hover-dark">Acerca de</a></li>
                     </ul>
                 </div>
 
                 <div class="col-6 col-sm-4 col-md-2">
                     <h5 class="fw-bold text-dark fs-6 mb-3">Soporte</h5>
                     <ul class="nav flex-column gap-2">
-                        <li class="nav-item"><a href="{{ url_for('soporte') }}" class="nav-link p-0 text-muted small text-hover-dark">Ayuda</a></li>
                         <li class="nav-item"><a href="{{ url_for('soporte') }}" class="nav-link p-0 text-muted small text-hover-dark">Centro de soporte</a></li>
                         <li class="nav-item"><a href="{{ url_for('terminos_condiciones') }}" class="nav-link p-0 text-muted small text-hover-dark">Términos y condiciones</a></li>
                         <li class="nav-item"><a href="{{ url_for('politica_privacidad') }}" class="nav-link p-0 text-muted small text-hover-dark">Política de privacidad</a></li>
@@ -262,3 +285,4 @@
         </div>
     </footer>
 </html>
+

@@ -139,10 +139,17 @@
 
         <div class="docente-card rounded-5 border shadow-sm p-4 p-sm-5 d-flex flex-column flex-sm-row align-items-center gap-4 gap-sm-5 animate-fade-in-up">
 
-            <div class="flex-shrink-0 animate-float">
+            <div class="photo-item docente-profile-trigger flex-shrink-0"
+                 role="button"
+                 tabindex="0"
+                 aria-haspopup="dialog"
+                 data-name="Harold Ferney Bolaños Rodriguez"
+                 data-role="Docente encargado de proyectos"
+                 data-program="Área: Tecnología"
+                 data-img="{{ url_for('static', filename='img/docente.jpg') }}">
                 <div class="docente-ring rounded-circle shadow">
                     <div class="w-100 h-100 rounded-circle overflow-hidden border border-2 border-white">
-                        <img src="{{ url_for('static', filename='img/docente.jpg') }}" alt="Docente encargado" class="zoomable w-100 h-100 object-fit-cover">
+                        <img src="{{ url_for('static', filename='img/docente.jpg') }}" alt="Harold Ferney Bolaños Rodriguez" class="w-100 h-100 object-fit-cover">
                     </div>
                 </div>
             </div>
