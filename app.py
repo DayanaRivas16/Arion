@@ -141,7 +141,13 @@ def destino_volver():
         return volver
     return url_for('admin_dashboard')
 # Los borradores son privados del estudiante, el panel solo modera estos tres
-ESTADOS_MODERABLES = ('Pendiente', 'Publicado', 'Rechazado')
+ESTADOS_MODERABLES = (
+    'Pendiente',
+    'Publicado',
+    'Rechazado',
+    'Observado',
+    'Borrador'
+)
 PROYECTOS_POR_PAGINA = 10
 
 def borrar_archivo_subido(ruta_relativa):
@@ -2045,29 +2051,59 @@ def revisar_proyecto(id):
 @admin_required_inicial
 def admin_proyectos():
     estado = request.args.get('estado', '')
+
     if estado not in ESTADOS_MODERABLES:
         estado = ''
+
     q = (request.args.get('q') or '').strip()
     pagina = max(request.args.get('pagina', 1, type=int), 1)
 
-    # Los números de las pestañas no dependen del filtro ni de la búsqueda
+    # Contar absolutamente todos los proyectos
     conteos = consultar("""
-        SELECT COUNT(*) FILTER (WHERE estado IN ('Pendiente', 'Publicado', 'Rechazado')) AS todos,
-               COUNT(*) FILTER (WHERE estado = 'Pendiente') AS pendientes,
-               COUNT(*) FILTER (WHERE estado = 'Publicado') AS publicados,
-               COUNT(*) FILTER (WHERE estado = 'Rechazado') AS rechazados
-        FROM proyectos
+            SELECT
+            COUNT(*) AS todos,
+            COUNT(*) FILTER (WHERE estado = 'Pendiente') AS pendientes,
+            COUNT(*) FILTER (WHERE estado = 'Publicado') AS publicados,
+            COUNT(*) FILTER (WHERE estado = 'Rechazado') AS rechazados,
+            (
+                SELECT COUNT(*)
+                FROM proyectos p2
+                WHERE (
+                    SELECT h.accion
+                    FROM historial_revisiones h
+                    WHERE h.id_proyecto = p2.id_proyecto
+                    ORDER BY h.fecha_revision DESC, h.id_revision DESC
+                    LIMIT 1
+                ) = 'Observado'
+            ) AS observados,
+            COUNT(*) FILTER (WHERE estado = 'Borrador') AS borradores
+        FROM proyectos 
     """, uno=True)
 
-    # El WHERE se arma solo con texto fijo; lo que escribe el usuario va siempre en params
-    condiciones = ["p.estado IN ('Pendiente', 'Publicado', 'Rechazado')"]
+    # No excluir ningún estado cuando se selecciona "Todos"
+    condiciones = ["1=1"]
     params = []
-    if estado:
+
+    if estado == 'Observado':
+        condiciones.append("""
+            (
+                SELECT h.accion
+                FROM historial_revisiones h
+                WHERE h.id_proyecto = p.id_proyecto
+                ORDER BY h.fecha_revision DESC, h.id_revision DESC
+                LIMIT 1
+            ) = 'Observado'
+        """)
+    elif estado:
         condiciones.append("p.estado = %s")
         params.append(estado)
+
     if q:
-        condiciones.append("(p.titulo ILIKE %s OR u.nombre_completo ILIKE %s)")
+        condiciones.append(
+            "(p.titulo ILIKE %s OR u.nombre_completo ILIKE %s)"
+        )
         params += [f'%{q}%', f'%{q}%']
+
     where = ' AND '.join(condiciones)
 
     total = consultar(f"""
@@ -2077,25 +2113,58 @@ def admin_proyectos():
         WHERE {where}
     """, params, uno=True)['n']
 
-    total_paginas = max(math.ceil(total / PROYECTOS_POR_PAGINA), 1)
+    total_paginas = max(
+        math.ceil(total / PROYECTOS_POR_PAGINA), 1
+    )
     pagina = min(pagina, total_paginas)
 
     proyectos = consultar(f"""
-        SELECT p.id_proyecto, p.titulo, p.imagen_portada, p.grado, p.estado,
-               p.es_destacado, p.fecha_creacion,
-               u.nombre_completo AS autor,
-               c.nombre_categoria AS categoria
+        SELECT
+            p.id_proyecto,
+            p.titulo,
+            p.imagen_portada,
+            p.grado,
+            p.estado,
+            p.es_destacado,
+            p.fecha_creacion,
+            (
+                SELECT h.comentario
+                FROM historial_revisiones h
+                WHERE h.id_proyecto = p.id_proyecto
+                AND h.accion = 'Observado'
+                ORDER BY h.fecha_revision DESC, h.id_revision DESC
+                LIMIT 1
+            ) AS observacion,
+            u.nombre_completo AS autor,
+            c.nombre_categoria AS categoria
         FROM proyectos p
         LEFT JOIN usuarios u ON u.id_usuario = p.id_usuario
         LEFT JOIN categorias c ON c.id_categoria = p.id_categoria
         WHERE {where}
-        ORDER BY (p.estado = 'Pendiente') DESC, p.fecha_creacion DESC
+        ORDER BY
+            CASE
+                WHEN p.estado = 'Pendiente' THEN 1
+                WHEN p.estado = 'Observado' THEN 2
+                WHEN p.estado = 'Borrador' THEN 3
+                ELSE 4
+            END,
+            p.fecha_creacion DESC
         LIMIT %s OFFSET %s
-    """, params + [PROYECTOS_POR_PAGINA, (pagina - 1) * PROYECTOS_POR_PAGINA])
+    """, params + [
+        PROYECTOS_POR_PAGINA,
+        (pagina - 1) * PROYECTOS_POR_PAGINA
+    ])
 
-    return render_template('admin/proyectos.html',
-                           proyectos=proyectos, conteos=conteos, estado=estado, q=q,
-                           pagina=pagina, total_paginas=total_paginas, total=total)
+    return render_template(
+        'admin/proyectos.html',
+        proyectos=proyectos,
+        conteos=conteos,
+        estado=estado,
+        q=q,
+        pagina=pagina,
+        total_paginas=total_paginas,
+        total=total
+    )
 
 # Muestra la ficha de revisión de un proyecto.
 @app.route('/admin/proyectos/<int:id>')

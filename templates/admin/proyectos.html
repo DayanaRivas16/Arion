@@ -23,14 +23,21 @@
 </div>
 
 <!-- Pestañas por estado -->
-{% set tabs = [('', 'Todos', conteos.todos),
-               ('Pendiente', 'Pendientes', conteos.pendientes),
-               ('Publicado', 'Publicados', conteos.publicados),
-               ('Rechazado', 'Rechazados', conteos.rechazados)] %}
+{% set tabs = [
+    ('', 'Todos', conteos.todos),
+    ('Pendiente', 'Pendientes', conteos.pendientes),
+    ('Publicado', 'Publicados', conteos.publicados),
+    ('Rechazado', 'Rechazados', conteos.rechazados),
+    ('Observado', 'Observados', conteos.observados),
+    ('Borrador', 'Borradores', conteos.borradores)
+] %}
+
 <div class="d-flex flex-wrap gap-2 pb-3 mb-3 border-bottom">
     {% for valor, texto, n in tabs %}
         <a href="{{ url_for('admin_proyectos', estado=valor or None, q=q or None) }}"
-           class="proy-tab {{ 'active' if estado == valor }}">{{ texto }} ({{ n }})</a>
+           class="proy-tab {{ 'active' if estado == valor }}">
+            {{ texto }} ({{ n }})
+        </a>
     {% endfor %}
 </div>
 
@@ -42,7 +49,13 @@
 {% endif %}
 
 <!-- Lista -->
-{% set textos_estado = {'Publicado': 'Aprobado', 'Pendiente': 'Pendiente de revisión', 'Rechazado': 'Rechazado'} %}
+{% set textos_estado = {
+    'Publicado': 'Aprobado',
+    'Pendiente': 'Pendiente de revisión',
+    'Rechazado': 'Rechazado',
+    'Observado': 'Con observaciones',
+    'Borrador': 'Borrador'
+} %}
 
 {% for p in proyectos %}
 <div class="card border-0 shadow-sm rounded-4 mb-3 proy-card">
@@ -67,10 +80,18 @@
             <div class="small text-secondary mt-1">
                 Autor: {{ p.autor or '—' }} • Grado {{ p.grado }} • Enviado el {{ p.fecha_creacion | fecha_es }}
             </div>
-            <div class="d-flex flex-wrap gap-2 mt-2">
-                <span class="proy-etiqueta proy-categoria">{{ p.categoria or 'Sin categoría' }}</span>
-                <span class="proy-etiqueta proy-estado-{{ p.estado | lower }}">{{ textos_estado[p.estado] }}</span>
-            </div>
+            {% if p.observacion %}
+                <div class="mt-3 p-3 rounded-3"
+                    style="background-color: #fff8e7; border-left: 4px solid #e5a000;">
+                    <div class="fw-semibold small mb-1">
+                        <i class="bi bi-chat-left-text"></i>
+                        Observación del docente
+                    </div>
+                    <p class="small mb-0 text-secondary">
+                        {{ p.observacion }}
+                    </p>
+                </div>
+            {% endif %}
         </div>
 
         <!-- Acciones según el estado -->

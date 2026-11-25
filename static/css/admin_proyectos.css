@@ -1,6 +1,15 @@
 /* Gestión de proyectos (panel admin) */
 
 /* Buscador */
+.proy-estado-observado {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+.proy-estado-borrador {
+    background-color: #e2e8f0;
+    color: #475569;
+}
 .proy-buscar {
     position: relative;
     width: 100%;
