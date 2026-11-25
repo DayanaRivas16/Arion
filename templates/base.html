@@ -85,11 +85,6 @@
                                             {% endif %}
                                         </div>
                                         <div class="small text-muted mt-1">{{ n.mensaje }}</div>
-                                        {% if n.tipo != 'soporte' and n.motivo %}
-                                        <div class="small text-danger mt-1 notif-motivo">
-                                            <strong>Motivo:</strong> {{ n.motivo }}
-                                        </div>
-                                        {% endif %}
                                     </button>
                                 </form>
                                 {% endfor %}

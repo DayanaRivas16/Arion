@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const deleteModal = document.getElementById('deleteModal');
     const confirmRevisionModalEl = document.getElementById('confirmRevisionModal');
     const editForm = document.getElementById('edit-form');
+    const editEstadoWrapper = document.getElementById('edit-estado-wrapper');
     const editEstadoSelect = document.getElementById('edit-estado');
     const optPublicado = document.getElementById('opt-estado-publicado');
     const optBorrador = document.getElementById('opt-estado-borrador');
@@ -43,6 +44,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (estadoActual === 'borrador') {
+                if (editEstadoWrapper) {
+                    editEstadoWrapper.classList.add('d-none');
+                }
                 if (optPublicado) {
                     optPublicado.hidden = true;
                     optPublicado.disabled = true;
@@ -52,10 +56,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     optBorrador.disabled = false;
                 }
                 if (editEstadoSelect) {
+                    editEstadoSelect.required = false;
                     editEstadoSelect.value = 'borrador';
                 }
             } else {
-                // Cuando está publicado (u otro estado), permitir cambiar a borrador
+                if (editEstadoWrapper) {
+                    editEstadoWrapper.classList.remove('d-none');
+                }
                 if (optPublicado) {
                     optPublicado.hidden = false;
                     optPublicado.disabled = false;
@@ -65,6 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     optBorrador.disabled = false;
                 }
                 if (editEstadoSelect) {
+                    editEstadoSelect.required = true;
                     editEstadoSelect.value = estadoActual === 'publicado' ? 'publicado' : 'borrador';
                 }
             }
@@ -88,19 +96,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (confirmRevisionBtn) {
-        confirmRevisionBtn.addEventListener('click', async () => {
+        confirmRevisionBtn.addEventListener('click', () => {
             confirmacionAceptada = true;
             if (confirmRevisionModal) {
                 confirmRevisionModal.hide();
             }
             if (!editForm) return;
 
-            const formData = new FormData(editForm);
-            const resp = await fetch(editForm.action, {
-                method: 'POST',
-                body: formData
-            });
-            window.location.href = resp.url || '/perfil';
+            if (typeof editForm.requestSubmit === 'function') {
+                editForm.requestSubmit();
+            } else {
+                editForm.submit();
+            }
         });
     }
 
