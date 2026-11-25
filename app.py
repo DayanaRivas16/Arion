@@ -19,7 +19,7 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = False
 
 # =====================================================================
-# PANEL DE ADMINISTRADOR: acceso, base del panel y gestión de usuarios
+# INICIALIZACIÓN Y FUNCIONES COMPARTIDAS
 # =====================================================================
 
 ID_TIPO_ESTUDIANTE = 1
@@ -106,6 +106,9 @@ def admin_required(f):
             abort(403)
         return f(*args, **kwargs)
     return wrapper
+# Conserva la validación que ya usaban las rutas administrativas.
+admin_required_inicial = admin_required
+
 
 
 def api_seguro(f):
@@ -121,70 +124,6 @@ def api_seguro(f):
     return wrapper
 
 
-# ---------------------------------------------------------------------
-# Ruta de entrada al panel
-# ---------------------------------------------------------------------
-@app.route('/admin/')
-@admin_required
-def admin_dashboard():
-    stats = consultar("""
-        SELECT
-            (SELECT COUNT(*) FROM proyectos) AS total_proyectos,
-            (SELECT COUNT(*) FROM proyectos
-              WHERE fecha_creacion >= date_trunc('month', now())) AS creados_este_mes,
-            (SELECT COUNT(*) FROM proyectos
-              WHERE fecha_creacion >= date_trunc('month', now()) - interval '1 month'
-                AND fecha_creacion <  date_trunc('month', now())) AS creados_mes_anterior,
-            (SELECT COUNT(*) FROM usuarios u
-               JOIN tipos_usuario t ON t.id_tipo = u.id_tipo
-              WHERE u.activo AND LEFT(LOWER(t.nombre_tipo), 5) = 'estud') AS estudiantes,
-            (SELECT COUNT(*) FROM proyectos WHERE estado = 'Pendiente') AS pendientes,
-            (SELECT COUNT(*) FROM reportes_proyecto WHERE NOT resuelto) AS reportes
-    """, uno=True)
-
-    # Variación mensual; si el mes pasado no hubo proyectos no hay base para el porcentaje
-    anterior = stats['creados_mes_anterior']
-    variacion = None
-    if anterior:
-        variacion = round((stats['creados_este_mes'] - anterior) / anterior * 100)
-
-    pendientes = consultar("""
-        SELECT p.id_proyecto, p.titulo, p.grado, p.fecha_creacion,
-               u.nombre_completo AS autor,
-               c.nombre_categoria AS categoria
-        FROM proyectos p
-        JOIN usuarios u ON u.id_usuario = p.id_usuario
-        LEFT JOIN categorias c ON c.id_categoria = p.id_categoria
-        WHERE p.estado = 'Pendiente'
-        ORDER BY p.fecha_creacion DESC
-        LIMIT 5
-    """)
-
-    return render_template('admin/dashboard.html',
-                            stats=stats, variacion=variacion, pendientes=pendientes)
-
-
-# =====================================================================
-# PANEL ADMIN - APROBAR (lo usa el dashboard y la lista de proyectos pendientes)
-# =====================================================================
-@app.route('/admin/proyectos/<int:id>/aprobar', methods=['POST'])
-@admin_required
-def admin_aprobar_proyecto(id):
-    filas = ejecutar("""
-        UPDATE proyectos
-        SET estado = 'Publicado',
-            motivo_rechazo = NULL
-        WHERE id_proyecto = %s AND estado = 'Pendiente'
-    """, (id,))
-
-    if filas:
-        flash('Proyecto aprobado y publicado.', 'success')
-    else:
-        flash('Ese proyecto ya no está pendiente.', 'warning')
-
-    # Vuelve a la página desde donde se pulsó el botón
-    return redirect(request.referrer or url_for('admin_dashboard'))
-
 @app.template_filter('tamano_legible')
 def tamano_legible(b):
     # 4977015 -> "4.7 MB"
@@ -196,9 +135,6 @@ def tamano_legible(b):
         b /= 1024
 
 
-# =====================================================================
-# PANEL ADMIN - FICHA DE REVISIÓN DE UN PROYECTO
-# =====================================================================
 def destino_volver():
     """A dónde regresa la ficha: la página desde la que se abrió (viene en ?volver=).
     Solo se aceptan rutas internas del panel; cualquier otra cosa vuelve al dashboard."""
@@ -206,91 +142,6 @@ def destino_volver():
     if volver.startswith('/admin') and not volver.startswith('//'):
         return volver
     return url_for('admin_dashboard')
-
-@app.route('/admin/proyectos/<int:id>')
-@admin_required
-def admin_revisar_proyecto(id):
-    proyecto = consultar("""
-        SELECT p.*,
-               u.nombre_completo AS autor,
-               u.correo_usuario  AS autor_correo,
-               c.nombre_categoria AS categoria
-        FROM proyectos p
-        LEFT JOIN usuarios u ON u.id_usuario = p.id_usuario
-        LEFT JOIN categorias c ON c.id_categoria = p.id_categoria
-        WHERE p.id_proyecto = %s
-    """, (id,), uno=True)
-
-    if not proyecto:
-        abort(404)
-
-    etiquetas = consultar("""
-        SELECT e.nombre_etiqueta
-        FROM proyectos_etiquetas pe
-        JOIN etiquetas e ON e.id_etiqueta = pe.id_etiqueta
-        WHERE pe.id_proyecto = %s
-        ORDER BY e.nombre_etiqueta
-    """, (id,))
-
-    documentos = consultar("""
-        SELECT nombre_archivo, url_archivo, tipo_documento, tamano_bytes, fecha_subida
-        FROM documentos_proyecto
-        WHERE id_proyecto = %s
-        ORDER BY fecha_subida
-    """, (id,))
-
-    colaboradores = consultar("""
-        SELECT u.nombre_completo, pc.rol_en_equipo
-        FROM proyecto_colaboradores pc
-        JOIN usuarios u ON u.id_usuario = pc.id_usuario
-        WHERE pc.id_proyecto = %s
-        ORDER BY (pc.rol_en_equipo = 'Autor') DESC, u.nombre_completo
-    """, (id,))
-
-    reportes = consultar("""
-        SELECT r.motivo, r.fecha, u.nombre_completo AS reportado_por
-        FROM reportes_proyecto r
-        LEFT JOIN usuarios u ON u.id_usuario = r.id_usuario
-        WHERE r.id_proyecto = %s AND NOT r.resuelto
-        ORDER BY r.fecha DESC
-    """, (id,))
-
-    volver_url = destino_volver()
-    if urlsplit(volver_url).path == '/admin/proyectos':
-        volver_texto = 'Volver a proyectos'
-    else:
-        volver_texto = 'Volver al dashboard'
-
-    return render_template('admin/revisar_proyecto.html',
-                            p=proyecto, etiquetas=etiquetas, documentos=documentos,
-                            colaboradores=colaboradores, reportes=reportes,
-                            volver_url=volver_url, volver_texto=volver_texto)
-
-
-@app.route('/admin/proyectos/<int:id>/rechazar', methods=['POST'])
-@admin_required
-def admin_rechazar_proyecto(id):
-    motivo = (request.form.get('motivo') or '').strip()
-    volver = destino_volver() 
-
-    # El estudiante necesita saber qué corregir, así que el motivo es obligatorio
-    if len(motivo) < 10:
-        flash('Escribe un motivo de rechazo (mínimo 10 caracteres).', 'warning')
-        return redirect(url_for('admin_revisar_proyecto', id=id, volver=volver)) 
-
-    filas = ejecutar("""
-        UPDATE proyectos
-        SET estado = 'Rechazado', motivo_rechazo = %s
-        WHERE id_proyecto = %s AND estado = 'Pendiente'
-    """, (motivo, id))
-
-    if filas:
-        flash('Proyecto rechazado.', 'success')
-    else:
-        flash('Ese proyecto ya no está pendiente.', 'warning')
-
-    return redirect(volver) 
-
 # Los borradores son privados del estudiante, el panel solo modera estos tres
 ESTADOS_MODERABLES = ('Pendiente', 'Publicado', 'Rechazado')
 PROYECTOS_POR_PAGINA = 10
@@ -307,218 +158,6 @@ def borrar_archivo_subido(ruta_relativa):
             os.remove(destino)
         except OSError:
             app.logger.warning(f'No se pudo borrar el archivo {destino}')
-
-# =====================================================================
-# PANEL ADMIN - GESTIÓN DE PROYECTOS
-# =====================================================================
-@app.route('/admin/proyectos')
-@admin_required
-def admin_proyectos():
-    estado = request.args.get('estado', '')
-    if estado not in ESTADOS_MODERABLES:
-        estado = ''
-    q = (request.args.get('q') or '').strip()
-    pagina = max(request.args.get('pagina', 1, type=int), 1)
-
-    # Los números de las pestañas no dependen del filtro ni de la búsqueda
-    conteos = consultar("""
-        SELECT COUNT(*) FILTER (WHERE estado IN ('Pendiente', 'Publicado', 'Rechazado')) AS todos,
-               COUNT(*) FILTER (WHERE estado = 'Pendiente') AS pendientes,
-               COUNT(*) FILTER (WHERE estado = 'Publicado') AS publicados,
-               COUNT(*) FILTER (WHERE estado = 'Rechazado') AS rechazados
-        FROM proyectos
-    """, uno=True)
-
-    # El WHERE se arma solo con texto fijo; lo que escribe el usuario va siempre en params
-    condiciones = ["p.estado IN ('Pendiente', 'Publicado', 'Rechazado')"]
-    params = []
-    if estado:
-        condiciones.append("p.estado = %s")
-        params.append(estado)
-    if q:
-        condiciones.append("(p.titulo ILIKE %s OR u.nombre_completo ILIKE %s)")
-        params += [f'%{q}%', f'%{q}%']
-    where = ' AND '.join(condiciones)
-
-    total = consultar(f"""
-        SELECT COUNT(*) AS n
-        FROM proyectos p
-        LEFT JOIN usuarios u ON u.id_usuario = p.id_usuario
-        WHERE {where}
-    """, params, uno=True)['n']
-
-    total_paginas = max(math.ceil(total / PROYECTOS_POR_PAGINA), 1)
-    pagina = min(pagina, total_paginas)
-
-    proyectos = consultar(f"""
-        SELECT p.id_proyecto, p.titulo, p.imagen_portada, p.grado, p.estado,
-               p.es_destacado, p.fecha_creacion,
-               u.nombre_completo AS autor,
-               c.nombre_categoria AS categoria
-        FROM proyectos p
-        LEFT JOIN usuarios u ON u.id_usuario = p.id_usuario
-        LEFT JOIN categorias c ON c.id_categoria = p.id_categoria
-        WHERE {where}
-        ORDER BY (p.estado = 'Pendiente') DESC, p.fecha_creacion DESC
-        LIMIT %s OFFSET %s
-    """, params + [PROYECTOS_POR_PAGINA, (pagina - 1) * PROYECTOS_POR_PAGINA])
-
-    return render_template('admin/proyectos.html',
-                           proyectos=proyectos, conteos=conteos, estado=estado, q=q,
-                           pagina=pagina, total_paginas=total_paginas, total=total)
-
-
-@app.route('/admin/proyectos/<int:id>/destacar', methods=['POST'])
-@admin_required
-def admin_destacar_proyecto(id):
-    destacar = request.form.get('valor') == '1'
-
-    # Solo se pueden destacar proyectos ya publicados
-    filas = ejecutar("""
-        UPDATE proyectos
-        SET es_destacado = %s
-        WHERE id_proyecto = %s AND estado = 'Publicado'
-    """, (destacar, id))
-
-    if not filas:
-        flash('Solo los proyectos publicados pueden destacarse.', 'warning')
-    elif destacar:
-        flash('Proyecto destacado.', 'success')
-    else:
-        flash('Se quitó el destacado del proyecto.', 'success')
-
-    return redirect(request.referrer or url_for('admin_proyectos'))
-
-
-@app.route('/admin/proyectos/<int:id>/eliminar', methods=['POST'])
-@admin_required
-def admin_eliminar_proyecto(id):
-    # Se anotan los archivos antes de borrar, porque el DELETE se lleva
-    # también las filas de documentos_proyecto (ON DELETE CASCADE)
-    archivos = consultar("""
-        SELECT url_archivo AS ruta FROM documentos_proyecto WHERE id_proyecto = %s
-        UNION ALL
-        SELECT imagen_portada FROM proyectos
-        WHERE id_proyecto = %s AND imagen_portada IS NOT NULL
-    """, (id, id))
-
-    filas = ejecutar("DELETE FROM proyectos WHERE id_proyecto = %s", (id,))
-
-    if filas:
-        for a in archivos:
-            borrar_archivo_subido(a['ruta'])
-        flash('Proyecto eliminado.', 'success')
-    else:
-        flash('Ese proyecto ya no existe.', 'warning')
-
-    return redirect(request.referrer or url_for('admin_proyectos'))
-
-@app.route('/admin/reportes')
-@admin_required
-def admin_reportes():
-    consultas = consultar("""
-        SELECT s.id_soporte,
-               u.nombre_completo AS nombre,
-               u.correo_usuario AS correo,
-               s.asunto,
-               s.descripcion,
-               s.estado
-        FROM soporte s
-        JOIN usuarios u ON u.id_usuario = s.usuario_id
-        ORDER BY CASE WHEN LOWER(s.estado) = 'pendiente' THEN 0 ELSE 1 END,
-                 s.fecha_creacion DESC;
-    """)
-    total_consultas = len(consultas)
-    consultas_pendientes = sum(
-        1 for consulta in consultas
-        if (consulta.get('estado') or '').strip().lower() == 'pendiente'
-    )
-
-    anios_disponibles = consultar("""
-        SELECT DISTINCT EXTRACT(YEAR FROM fecha_creacion)::int AS anio
-        FROM proyectos
-        WHERE LOWER(estado) = 'publicado'
-        ORDER BY anio DESC;
-    """)
-    anios_disponibles = [fila['anio'] for fila in anios_disponibles]
-    anio_solicitado = request.args.get('anio', type=int)
-    anio_actual = anio_solicitado if anio_solicitado in anios_disponibles else (
-        anios_disponibles[0] if anios_disponibles else datetime.now().year
-    )
-
-    proyectos_por_mes = consultar("""
-        SELECT EXTRACT(MONTH FROM fecha_creacion)::int AS mes, COUNT(*) AS total
-        FROM proyectos
-        WHERE LOWER(estado) = 'publicado'
-          AND EXTRACT(YEAR FROM fecha_creacion) = %s
-        GROUP BY mes
-        ORDER BY mes;
-    """, (anio_actual,))
-    totales_por_mes = {fila['mes']: fila['total'] for fila in proyectos_por_mes}
-    nombres_meses = (
-        'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
-    )
-    max_proyectos_mes = max(totales_por_mes.values(), default=0)
-    meses = [
-        {
-            'nombre': nombre,
-            'total': totales_por_mes.get(numero, 0),
-            'porcentaje': (
-                totales_por_mes.get(numero, 0) * 100 / max_proyectos_mes
-                if max_proyectos_mes else 0
-            ),
-        }
-        for numero, nombre in enumerate(nombres_meses, start=1)
-    ]
-
-    categorias = consultar("""
-        SELECT COALESCE(c.nombre_categoria, 'Sin categoría') AS nombre,
-               COUNT(*) AS total
-        FROM proyectos p
-        LEFT JOIN categorias c ON c.id_categoria = p.id_categoria
-        WHERE LOWER(p.estado) = 'publicado'
-          AND EXTRACT(YEAR FROM p.fecha_creacion) = %s
-        GROUP BY nombre
-        ORDER BY total DESC, nombre;
-    """, (anio_actual,))
-    total_proyectos_anio = sum(categoria['total'] for categoria in categorias)
-    for categoria in categorias:
-        categoria['porcentaje'] = (
-            categoria['total'] * 100 / total_proyectos_anio
-            if total_proyectos_anio else 0
-        )
-
-    estudiantes = consultar("""
-        SELECT u.nombre_completo AS nombre,
-               u.grado,
-               COUNT(p.id_proyecto) AS proyectos,
-               AVG(p.calificacion)::float AS valoracion_promedio,
-               COALESCE(SUM(p.vistas_count), 0) AS vistas_totales
-        FROM usuarios u
-        JOIN proyectos p ON p.id_usuario = u.id_usuario
-        WHERE u.id_tipo = %s
-          AND LOWER(p.estado) = 'publicado'
-          AND EXTRACT(YEAR FROM p.fecha_creacion) = %s
-        GROUP BY u.id_usuario, u.nombre_completo, u.grado
-        ORDER BY vistas_totales DESC, proyectos DESC, u.nombre_completo
-        LIMIT 10;
-    """, (ID_TIPO_ESTUDIANTE, anio_actual))
-
-    return render_template(
-        'admin/reportes.html',
-        consultas=consultas,
-        total_consultas=total_consultas,
-        consultas_pendientes=consultas_pendientes,
-        otras_consultas=total_consultas - consultas_pendientes,
-        anios_disponibles=anios_disponibles or [anio_actual],
-        anio_actual=anio_actual,
-        meses=meses,
-        categorias=categorias,
-        total_proyectos_anio=total_proyectos_anio,
-        estudiantes=estudiantes,
-    )
-
 
 SECCIONES_CONFIG = ('general', 'categorias', 'almacenamiento', 'permisos')
 
@@ -607,277 +246,14 @@ def volver_config(seccion):
     return redirect(url_for('admin_configuracion', seccion=seccion))
 
 
-# =====================================================================
-# PANEL ADMIN - CONFIGURACIÓN (pantalla)
-# =====================================================================
-@app.route('/admin/configuracion')
-@admin_required
-def admin_configuracion():
-    seccion = request.args.get('seccion', 'general')
-    if seccion not in SECCIONES_CONFIG:
-        seccion = 'general'
-
-    config = leer_config()
-    datos = {}
-
-    if seccion == 'categorias':
-        datos['categorias'] = consultar("""
-            SELECT c.id_categoria, c.nombre_categoria, c.descripcion,
-                    COUNT(p.id_proyecto) AS proyectos
-            FROM categorias c
-            LEFT JOIN proyectos p ON p.id_categoria = c.id_categoria
-            GROUP BY c.id_categoria
-            ORDER BY c.nombre_categoria
-        """)
-
-    elif seccion == 'almacenamiento':
-        # Se mide lo que realmente hay en disco (portadas y documentos), no una cifra guardada
-        carpeta = os.path.join(app.static_folder, 'uploads')
-        portadas = bytes_en_carpeta(os.path.join(carpeta, 'proyectos'))
-        documentos = bytes_en_carpeta(os.path.join(carpeta, 'documentos'))
-        usado = portadas + documentos
-        total = config['almacenamiento_total_gb'] * 1024 ** 3
-        datos.update(usado=usado, total=total, portadas=portadas, documentos=documentos,
-                     porcentaje=min(round(usado * 100 / total, 1), 100) if total else 0)
-
-    elif seccion == 'permisos':
-        filas = consultar("SELECT accion, rol, permitido FROM permisos_rol")
-        datos['marcados'] = {f"{f['accion']}__{f['rol']}": f['permitido'] for f in filas}
-        datos['acciones'] = PERMISOS_ACCIONES
-        datos['roles'] = PERMISOS_ROLES
-        datos['fijos'] = {f"{a}__{r}" for a, r in PERMISOS_FIJOS}
-
-    return render_template('admin/configuracion.html', seccion=seccion, config=config, **datos)
-
-
-# ---------------------------------------------------------------------
-# Parámetros generales
-# ---------------------------------------------------------------------
-@app.route('/admin/configuracion/general', methods=['POST'])
-@admin_required
-def admin_guardar_general():
-    institucion = (request.form.get('institucion') or '').strip()
-    anio = (request.form.get('anio_lectivo') or '').strip()
-    max_mb = request.form.get('max_mb', type=int)
-
-    if not institucion or len(institucion) > 150:
-        flash('El nombre de la institución es obligatorio (máximo 150 caracteres).', 'warning')
-        return volver_config('general')
-    if not anio or len(anio) > 50:
-        flash('El año lectivo es obligatorio (máximo 50 caracteres).', 'warning')
-        return volver_config('general')
-    # El servidor acepta 16 MB por envío (MAX_CONTENT_LENGTH), así que un archivo no puede pasar de ahí
-    if max_mb is None or not 1 <= max_mb <= 15:
-        flash('El tamaño máximo por archivo debe estar entre 1 y 15 MB.', 'warning')
-        return volver_config('general')
-
-    guardar_config({
-        'institucion': institucion,
-        'anio_lectivo': anio,
-        'max_mb': max_mb,
-        'moderacion': request.form.get('moderacion') == 'on',
-    })
-    flash('Parámetros generales guardados.', 'success')
-    return volver_config('general')
-
-
-# ---------------------------------------------------------------------
-# Categorías
-# ---------------------------------------------------------------------
-@app.route('/admin/configuracion/categorias/crear', methods=['POST'])
-@admin_required
-def admin_crear_categoria():
-    nombre = (request.form.get('nombre') or '').strip()
-    descripcion = (request.form.get('descripcion') or '').strip()[:300] or None
-
-    if not nombre or len(nombre) > 100:
-        flash('El nombre de la categoría es obligatorio (máximo 100 caracteres).', 'warning')
-        return volver_config('categorias')
-
-    # La BD ya impide nombres repetidos, pero así se compara sin importar mayúsculas
-    existe = consultar("SELECT 1 FROM categorias WHERE LOWER(BTRIM(nombre_categoria)) = LOWER(%s)",
-                        (nombre,), uno=True)
-    if existe:
-        flash(f'Ya existe una categoría llamada «{nombre}».', 'warning')
-        return volver_config('categorias')
-
-    ejecutar("""INSERT INTO categorias (nombre_categoria, descripcion)
-                VALUES (%s, %s)""", (nombre, descripcion))
-    flash(f'Categoría «{nombre}» creada.', 'success')
-    return volver_config('categorias')
-
-
-@app.route('/admin/configuracion/categorias/<int:id>/eliminar', methods=['POST'])
-@admin_required
-def admin_eliminar_categoria(id):
-    cat = consultar("""
-        SELECT nombre_categoria,
-               (SELECT COUNT(*) FROM proyectos WHERE id_categoria = %s) AS proyectos,
-               (SELECT COUNT(*) FROM categorias) AS total
-        FROM categorias WHERE id_categoria = %s
-    """, (id, id), uno=True)
-
-    if not cat:
-        flash('Esa categoría ya no existe.', 'warning')
-        return volver_config('categorias')
-    # Al subir un proyecto es obligatorio elegir categoría, sin ninguna nadie podría subir
-    if cat['total'] <= 1:
-        flash('No puedes eliminar la única categoría que queda.', 'warning')
-        return volver_config('categorias')
-
-    ejecutar("DELETE FROM categorias WHERE id_categoria = %s", (id,))
-    mensaje = f"Categoría «{cat['nombre_categoria']}» eliminada."
-    if cat['proyectos']:
-        mensaje += f" {cat['proyectos']} proyecto(s) quedaron sin categoría."
-    flash(mensaje, 'success')
-    return volver_config('categorias')
-
-
 # ---------------------------------------------------------------------
 # Almacenamiento y archivos
 # ---------------------------------------------------------------------
-@app.route('/admin/configuracion/almacenamiento', methods=['POST'])
-@admin_required
-def admin_guardar_almacenamiento():
-    permite_pdf = request.form.get('permite_pdf') == 'on'
-    permite_docx = request.form.get('permite_docx') == 'on'
-
-    if not (permite_pdf or permite_docx):
-        flash('Debe quedar al menos un formato permitido.', 'warning')
-        return volver_config('almacenamiento')
-
-    guardar_config({'permite_pdf': permite_pdf, 'permite_docx': permite_docx})
-    flash('Formatos permitidos guardados.', 'success')
-    return volver_config('almacenamiento')
-
-
 # ---------------------------------------------------------------------
 # Permisos de roles
 # ---------------------------------------------------------------------
-@app.route('/admin/configuracion/permisos', methods=['POST'])
-@admin_required
-def admin_guardar_permisos():
-    sentencias = []
-    for accion, _ in PERMISOS_ACCIONES:
-        for rol, _ in PERMISOS_ROLES:
-            if (accion, rol) in PERMISOS_FIJOS:
-                continue            # las celdas fijas no se tocan aunque alguien manipule el formulario
-            marcado = f'{accion}__{rol}' in request.form
-            sentencias.append((
-                "UPDATE permisos_rol SET permitido = %s WHERE accion = %s AND rol = %s",
-                (marcado, accion, rol)))
-
-    ejecutar_lote(sentencias)
-    flash('Permisos guardados.', 'success')
-    return volver_config('permisos')
-
-
-# ---------------------------------------------------------------------
-# Gestión de usuarios: pantalla
-# ---------------------------------------------------------------------
-@app.route('/admin/usuarios')
-@admin_required
-def admin_usuarios():
-    q = request.args.get('q', '').strip()
-    rol = request.args.get('rol', type=int)              # id_tipo elegido en el filtro (o None)
-    grado = request.args.get('grado', '')
-
-    # El WHERE se arma por pedazos según los filtros que lleguen. Los valores van siempre
-    # en `params` (nunca pegados al texto del SQL) para evitar inyección.
-    filtros, params = [], []
-    if q:
-        filtros.append("(LOWER(u.nombre_completo) LIKE %s OR LOWER(u.correo_usuario) LIKE %s "
-                       "OR CAST(u.id_usuario AS TEXT) LIKE %s)")
-        params += [f"%{q.lower()}%"] * 3
-    if rol:
-        filtros.append("u.id_tipo = %s")
-        params.append(rol)
-    if grado:
-        filtros.append("u.grado = %s")
-        params.append(grado)
-    donde = ("WHERE " + " AND ".join(filtros)) if filtros else ""
-    desde = "FROM usuarios u LEFT JOIN tipos_usuario t ON t.id_tipo = u.id_tipo"
-
-    # Paginación: 10 por página. El total sirve para saber cuántas páginas hay.
-    por_pagina = 10
-    total = consultar(f"SELECT COUNT(*) AS n {desde} {donde}", params, uno=True)['n']
-    paginas = max(1, -(-total // por_pagina))            # división hacia arriba
-    pagina = min(max(request.args.get('page', 1, type=int), 1), paginas)
-
-    filas = consultar(f"""
-        SELECT u.id_usuario AS id, u.nombre_completo AS nombre, u.correo_usuario AS correo,
-               u.id_tipo, t.nombre_tipo AS rol, u.grado, u.activo
-        {desde} {donde}
-        ORDER BY u.nombre_completo
-        LIMIT %s OFFSET %s
-    """, params + [por_pagina, (pagina - 1) * por_pagina])
-    for u in filas:                                      # datos listos para que la plantilla los muestre tal cual
-        u['rol'] = u['rol'] or 'Sin rol'
-        u['es_admin'] = u['id_tipo'] == ID_TIPO_ADMIN
-        u['rol_clave'] = rol_clave(u['id_tipo'])
-        u['grado'] = u['grado'] or 'N/A'
-        u['estado'] = 'Activo' if u['activo'] else 'Inactivo'
-
-    # Opciones de los filtros y del modal de edición
-    roles = consultar("SELECT id_tipo AS id, nombre_tipo AS nombre FROM tipos_usuario ORDER BY id_tipo")
-    grados = [g['grado'] for g in consultar(
-        "SELECT DISTINCT grado FROM usuarios WHERE grado IS NOT NULL AND grado <> '' ORDER BY grado")]
-    return render_template('admin/usuarios.html', usuarios=filas, total=total, pagina=pagina,
-                           paginas=paginas, q=q, rol=rol, grado=grado, grados=grados, roles=roles,
-                           roles_editables=[r for r in roles if r['id'] != ID_TIPO_ADMIN])
-
-
-# ---------------------------------------------------------------------
-# Gestión de usuarios: acciones (las llama admin.js con fetch y responden JSON)
-# ---------------------------------------------------------------------
-@app.route('/admin/api/usuarios/<int:uid>', methods=['PUT'])
-@admin_required
-@api_seguro
-def admin_api_editar_usuario(uid):
-    d = request.get_json(silent=True) or {}
-    nombre = (d.get('nombre') or '').strip()
-    if not nombre:
-        return _no('El nombre es obligatorio.', 400)
-
-    # El rol llega como id. Se comprueba que exista en tipos_usuario y que no sea el de
-    # administrador: ese rol no se asigna desde esta pantalla.
-    try:
-        id_tipo = int(d.get('rol'))
-    except (TypeError, ValueError):
-        return _no('Rol no válido.', 400)
-    existe = consultar("SELECT 1 FROM tipos_usuario WHERE id_tipo = %s", (id_tipo,), uno=True)
-    if not existe or id_tipo == ID_TIPO_ADMIN:
-        return _no('Rol no válido.', 400)
-
-    # Los docentes no tienen grado; a los estudiantes se les recorta a 10 caracteres (el tamaño de la columna)
-    grado = None if id_tipo == ID_TIPO_DOCENTE else ((d.get('grado') or '').strip()[:10] or None)
-
-    # El "id_tipo <> admin" del final evita que se pueda editar a un administrador desde acá
-    fila = ejecutar_uno("""UPDATE usuarios SET nombre_completo = %s, id_tipo = %s, grado = %s
-                           WHERE id_usuario = %s AND id_tipo <> %s
-                           RETURNING id_usuario""",
-                        (nombre, id_tipo, grado, uid, ID_TIPO_ADMIN))
-    return _ok('Usuario actualizado.') if fila else _no('Usuario no encontrado.')
-
-
-@app.route('/admin/api/usuarios/<int:uid>/estado', methods=['POST'])
-@admin_required
-@api_seguro
-def admin_api_estado_usuario(uid):
-    # Bloquear/activar: NOT activo invierte el valor que tenga. Un admin no puede bloquearse a sí mismo
-    # ni a otros administradores.
-    if uid == session.get('user_id'):
-        return _no('No puedes bloquear tu propia cuenta.', 400)
-    fila = ejecutar_uno("""UPDATE usuarios SET activo = NOT activo
-                           WHERE id_usuario = %s AND id_tipo <> %s
-                           RETURNING nombre_completo, activo""", (uid, ID_TIPO_ADMIN))
-    if not fila:
-        return _no('Usuario no encontrado.')
-    return _ok(f'{fila["nombre_completo"]} ahora está {"activo" if fila["activo"] else "bloqueado"}.')
-
-
 # ======================================================
-# CONFIGURACIÓN DE CARGA DE ARCHIVOS    
+# CONFIGURACIÓN DE CARGA DE ARCHIVOS
 # ======================================================
 
 app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static', 'uploads', 'proyectos')
@@ -947,38 +323,7 @@ def get_db_connection():
     )
     return conn
 # =====================================================================
-# RUTA DE PRUEBA PARA CONEXIÓN
-# =====================================================================
-@app.route('/test-db')
-def test_db():
-    try:
-        # 1. Conectamos a la base de datos
-        conn = get_db_connection()
-        # Usamos RealDictCursor para que nos devuelva los resultados como diccionarios Python
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-        
-        # 2. Hacemos una consulta para traer los usuarios (ajustada a esquema)
-        cursor.execute("SELECT id_usuario, nombre_completo, correo_usuario FROM usuarios;")
-        usuarios_registrados = cursor.fetchall()
-        
-        # 3. Cerramos los flujos de conexión de forma limpia
-        cursor.close()
-        conn.close()
-        
-        # 4. Mostramos el resultado en formato JSON en el navegador para verificar
-        return jsonify({
-            "status": "Conexión exitosa a PostgreSQL",
-            "usuarios_en_bd": usuarios_registrados
-        }), 200
-        
-    except Exception as e:
-        # Si algo falla (contraseña mal puesta, BD apagada, etc.), te dirá el error exacto
-        return jsonify({
-            "status": "Error de conexión",
-            "detalles": str(e)
-        }), 500
-# =====================================================================
-# CONTROLES DE ACCESO 
+# CONTROLES DE ACCESO
 # =====================================================================
 
 def login_required(f): #login required es un decorador que protege rutas que requieren autenticación
@@ -989,8 +334,317 @@ def login_required(f): #login required es un decorador que protege rutas que req
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated_function
+MESES_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun',
+            'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 
 
+@app.template_filter('fecha_es')
+def fecha_es(valor):
+    # 25 Oct 2026 (strftime sale en inglés, por eso se arma a mano)
+    if not valor:
+        return '—'
+    return f"{valor.day:02d} {MESES_ES[valor.month - 1].capitalize()} {valor.year}"
+
+
+def admin_required(f):
+    """Solo deja pasar a usuarios activos con rol administrador.
+    Se consulta la BD en cada petición para que un cambio de rol aplique al instante."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Por favor, inicia sesión para acceder a esta página.', 'warning')
+            return redirect(url_for('login'))
+
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT 1
+                    FROM usuarios u
+                    JOIN tipos_usuario t ON t.id_tipo = u.id_tipo
+                    WHERE u.id_usuario = %s
+                      AND u.activo
+                      AND LEFT(LOWER(t.nombre_tipo), 5) = 'admin'
+                """, (session['user_id'],))
+                es_admin = cur.fetchone()
+        finally:
+            conn.close()
+
+        if not es_admin:
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated
+
+
+def consultar(sql, params=None, uno=False):
+    """SELECT rápido que devuelve dicts (una fila si uno=True, lista si no)."""
+    conn = get_db_connection()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(sql, params)
+            return cur.fetchone() if uno else cur.fetchall()
+    finally:
+        conn.close()
+
+
+def ejecutar(sql, params=None):
+    """INSERT/UPDATE/DELETE con commit. Devuelve cuántas filas afectó."""
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql, params)
+            filas = cur.rowcount
+        conn.commit()
+        return filas
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+# =====================================================================
+# Funciones auxiliares para proyectos
+# =====================================================================
+def tarjetas_proyectos(cursor, solo_destacados, limite):
+    filtro = "AND p.es_destacado = TRUE" if solo_destacados else ""
+    cursor.execute(f"""
+        SELECT p.id_proyecto AS id, p.titulo,
+               COALESCE(c.nombre_categoria, 'Sin categoría') AS categoria,
+               COALESCE(u.nombre_completo, 'Autor desconocido') AS autor,
+               p.calificacion::float AS rating,
+               COALESCE(p.vistas_count, 0) AS vistas,
+               p.imagen_portada
+        FROM proyectos p
+        LEFT JOIN categorias c ON c.id_categoria = p.id_categoria
+        LEFT JOIN usuarios u ON u.id_usuario = p.id_usuario
+        WHERE LOWER(p.estado) = 'publicado' {filtro}
+        ORDER BY p.fecha_creacion DESC
+        LIMIT %s;
+    """, (limite,))
+    filas = cursor.fetchall()
+    for f in filas:
+        f['imagen'] = url_for('static', filename=f['imagen_portada']) if f['imagen_portada'] else ''
+        if 'user_id' not in session:
+            f['rating'] = None
+            f['vistas'] = None
+    return filas
+# ==========================================================
+# GUARDAR ETIQUETAS DEL PROYECTO
+# ==========================================================
+
+def guardar_etiquetas(cursor, id_proyecto, texto_etiquetas):
+    nombres = {
+        nombre.strip().lower(): nombre.strip()
+        for nombre in texto_etiquetas.split(',')
+        if nombre.strip()
+    }
+
+    for nombre_normalizado, nombre in nombres.items():
+        cursor.execute("""
+            SELECT id_etiqueta
+            FROM etiquetas
+            WHERE LOWER(nombre_etiqueta) = %s
+            LIMIT 1;
+        """, (nombre_normalizado,))
+
+        etiqueta = cursor.fetchone()
+
+        if etiqueta:
+            id_etiqueta = etiqueta['id_etiqueta']
+        else:
+            cursor.execute("""
+                INSERT INTO etiquetas (nombre_etiqueta)
+                VALUES (%s)
+                RETURNING id_etiqueta;
+            """, (nombre,))
+
+            etiqueta = cursor.fetchone()
+            id_etiqueta = etiqueta['id_etiqueta']
+
+        cursor.execute("""
+            INSERT INTO proyectos_etiquetas (id_proyecto, id_etiqueta)
+            SELECT %s, %s
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM proyectos_etiquetas
+                WHERE id_proyecto = %s
+                  AND id_etiqueta = %s
+            );
+        """, (
+            id_proyecto,
+            id_etiqueta,
+            id_proyecto,
+            id_etiqueta
+        ))
+
+def info_archivo(archivo):
+    """Extensión, tamaño y primeros bytes de un archivo subido."""
+    extension = os.path.splitext(archivo.filename or '')[1].lstrip('.').lower()
+    archivo.stream.seek(0, os.SEEK_END)
+    tamano = archivo.stream.tell()
+    archivo.stream.seek(0)
+    cabecera = archivo.stream.read(12)
+    archivo.stream.seek(0)
+    return extension, tamano, cabecera
+
+
+def contenido_valido(extension, cabecera):
+    """Comprueba que el contenido real coincida con la extensión."""
+    if extension == 'png':
+        return cabecera.startswith(b'\x89PNG')
+    if extension in ('jpg', 'jpeg'):
+        return cabecera.startswith(b'\xff\xd8')
+    if extension == 'webp':
+        return cabecera[:4] == b'RIFF' and cabecera[8:12] == b'WEBP'
+    if extension == 'pdf':
+        return cabecera.startswith(b'%PDF')
+    if extension == 'docx':
+        return cabecera.startswith(b'PK\x03\x04')
+    return False
+
+
+def datos_formulario(uid):
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cursor.execute("SELECT id_categoria AS id, nombre_categoria AS nombre FROM categorias ORDER BY nombre_categoria;")
+        categorias = cursor.fetchall()
+        cursor.execute("""
+            SELECT id_usuario AS id, nombre_completo AS nombre, foto_perfil AS foto
+            FROM usuarios
+            WHERE id_usuario <> %s
+              AND id_tipo = %s
+              AND COALESCE(activo, TRUE) = TRUE
+            ORDER BY nombre_completo;
+        """, (uid, ID_TIPO_ESTUDIANTE))
+        usuarios = cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+    return {'categorias': categorias, 'usuarios': usuarios}
+#=========================================================
+#=========================================================
+# ======================================================
+# Controles para las rutas docentes
+# ======================================================
+
+def docente_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Por favor, inicia sesión para acceder a esta página.', 'warning')
+            return redirect(url_for('login'))
+        if session.get('id_tipo') != ID_TIPO_DOCENTE:
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+@app.context_processor
+def inyectar_pendientes_docente():
+    if session.get('user_id') and session.get('id_tipo') == ID_TIPO_DOCENTE:
+        conn = cur = None
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("SELECT nombre_completo FROM usuarios WHERE id_usuario = %s;", (session['user_id'],))
+            docente = cur.fetchone()
+            nombre_docente = (docente['nombre_completo'] or '').strip() if docente else ''
+
+            cur.execute("""
+                SELECT COUNT(*) AS total
+                FROM proyectos
+                WHERE LOWER(COALESCE(estado, '')) = 'pendiente'
+                  AND LOWER(TRIM(COALESCE(profesor_a_cargo, ''))) = LOWER(TRIM(%s));
+            """, (nombre_docente,))
+            fila = cur.fetchone()
+            return {'pendientes_revision_count': fila['total'] if fila else 0}
+        except Exception:
+            app.logger.exception('Error calculando pendientes del docente')
+            return {'pendientes_revision_count': 0}
+        finally:
+            if cur: cur.close()
+            if conn: conn.close()
+    return {'pendientes_revision_count': 0}
+
+@app.context_processor
+def inyectar_notificaciones_usuario():
+    uid = session.get('user_id')
+    if not uid or session.get('id_tipo') != ID_TIPO_ESTUDIANTE:
+        return {'notificaciones_usuario': [], 'notificaciones_count': 0}
+
+    conn = cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT id_notificacion AS id,
+                   tipo,
+                   titulo,
+                   mensaje,
+                   motivo,
+                   url_destino AS url,
+                   fecha_creacion
+            FROM notificaciones_usuario
+            WHERE id_usuario = %s
+              AND leida = FALSE
+            ORDER BY fecha_creacion DESC, id_notificacion DESC
+            LIMIT 10;
+        """, (uid,))
+        avisos = [dict(f) for f in cur.fetchall()]
+        return {'notificaciones_usuario': avisos, 'notificaciones_count': len(avisos)}
+    except Exception:
+        app.logger.exception('Error cargando notificaciones del usuario')
+        return {'notificaciones_usuario': [], 'notificaciones_count': 0}
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+#=========================================================
+#=========================================================
+#=========================================================
+#=========================================================
+#=========================================================
+#=========================================================
+
+
+# BASE DE DATOS
+# Comprueba la conexión a la base de datos y devuelve usuarios registrados.
+@app.route('/test-db')
+def test_db():
+    try:
+        # 1. Conectamos a la base de datos
+        conn = get_db_connection()
+        # Usamos RealDictCursor para que nos devuelva los resultados como diccionarios Python
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # 2. Hacemos una consulta para traer los usuarios (ajustada a esquema)
+        cursor.execute("SELECT id_usuario, nombre_completo, correo_usuario FROM usuarios;")
+        usuarios_registrados = cursor.fetchall()
+
+        # 3. Cerramos los flujos de conexión de forma limpia
+        cursor.close()
+        conn.close()
+
+        # 4. Mostramos el resultado en formato JSON en el navegador para verificar
+        return jsonify({
+            "status": "Conexión exitosa a PostgreSQL",
+            "usuarios_en_bd": usuarios_registrados
+        }), 200
+
+    except Exception as e:
+        # Si algo falla (contraseña mal puesta, BD apagada, etc.), te dirá el error exacto
+        return jsonify({
+            "status": "Error de conexión",
+            "detalles": str(e)
+        }), 500
+
+
+
+# ACCESO Y REGISTRO
+# Muestra el acceso o redirige si ya hay una sesión activa.
 @app.route('/login') #muestra la página de login si no hay sesión activa, si ya hay sesión activa redirige al home
 def login():
 
@@ -1000,18 +654,18 @@ def login():
         return redirect(url_for('home'))
     return render_template('login.html')
 
+# Dirige el registro al flujo de acceso institucional.
 @app.route('/register')
 def register():
     return redirect(url_for('login'))
 
-# ======================================================
-# AUTENTICACIÓN CON GOOGLE
-# ======================================================
+# Inicia la autenticación con la cuenta de Google.
 @app.route('/login/google')
 def google_login(): #inica el proceso de autenticación con Google
     redirect_uri = url_for('google_callback', _external=True)
     return google.authorize_redirect(redirect_uri)
 
+# Valida la respuesta de Google y crea o inicia la sesión.
 @app.route('/google/callback')
 def google_callback(): #maneja la respuesta de Google después de que el usuario autoriza la aplicación
     try:
@@ -1186,103 +840,10 @@ def google_callback(): #maneja la respuesta de Google después de que el usuario
         flash('No fue posible iniciar sesión con Google.', 'error')
         return redirect(url_for('login'))
 
-MESES_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun',
-            'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 
 
-@app.template_filter('fecha_es')
-def fecha_es(valor):
-    # 25 Oct 2026 (strftime sale en inglés, por eso se arma a mano)
-    if not valor:
-        return '—'
-    return f"{valor.day:02d} {MESES_ES[valor.month - 1].capitalize()} {valor.year}"
-
-
-def admin_required(f):
-    """Solo deja pasar a usuarios activos con rol administrador.
-    Se consulta la BD en cada petición para que un cambio de rol aplique al instante."""
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if 'user_id' not in session:
-            flash('Por favor, inicia sesión para acceder a esta página.', 'warning')
-            return redirect(url_for('login'))
-
-        conn = get_db_connection()
-        try:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    SELECT 1
-                    FROM usuarios u
-                    JOIN tipos_usuario t ON t.id_tipo = u.id_tipo
-                    WHERE u.id_usuario = %s
-                      AND u.activo
-                      AND LEFT(LOWER(t.nombre_tipo), 5) = 'admin'
-                """, (session['user_id'],))
-                es_admin = cur.fetchone()
-        finally:
-            conn.close()
-
-        if not es_admin:
-            abort(403)
-        return f(*args, **kwargs)
-    return decorated
-
-
-def consultar(sql, params=None, uno=False):
-    """SELECT rápido que devuelve dicts (una fila si uno=True, lista si no)."""
-    conn = get_db_connection()
-    try:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(sql, params)
-            return cur.fetchone() if uno else cur.fetchall()
-    finally:
-        conn.close()
-
-
-def ejecutar(sql, params=None):
-    """INSERT/UPDATE/DELETE con commit. Devuelve cuántas filas afectó."""
-    conn = get_db_connection()
-    try:
-        with conn.cursor() as cur:
-            cur.execute(sql, params)
-            filas = cur.rowcount
-        conn.commit()
-        return filas
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
-
-
-# =====================================================================
-# RUTAS PROTEGIDAS 
-# =====================================================================
-def tarjetas_proyectos(cursor, solo_destacados, limite):
-    filtro = "AND p.es_destacado = TRUE" if solo_destacados else ""
-    cursor.execute(f"""
-        SELECT p.id_proyecto AS id, p.titulo,
-               COALESCE(c.nombre_categoria, 'Sin categoría') AS categoria,
-               COALESCE(u.nombre_completo, 'Autor desconocido') AS autor,
-               p.calificacion::float AS rating,
-               COALESCE(p.vistas_count, 0) AS vistas,
-               p.imagen_portada
-        FROM proyectos p
-        LEFT JOIN categorias c ON c.id_categoria = p.id_categoria
-        LEFT JOIN usuarios u ON u.id_usuario = p.id_usuario
-        WHERE LOWER(p.estado) = 'publicado' {filtro}
-        ORDER BY p.fecha_creacion DESC
-        LIMIT %s;
-    """, (limite,))
-    filas = cursor.fetchall()
-    for f in filas:
-        f['imagen'] = url_for('static', filename=f['imagen_portada']) if f['imagen_portada'] else ''
-        if 'user_id' not in session:
-            f['rating'] = None
-            f['vistas'] = None
-    return filas
-
-
+# ESTUDIANTE Y PÁGINAS PÚBLICAS
+# Muestra el inicio con proyectos y datos destacados.
 @app.route('/')
 def home():
     stats = {'proyectos': 0, 'usuarios': 0, 'destacados': 0}
@@ -1313,10 +874,11 @@ def home():
 
     return render_template('home.html', stats=stats, proyectos=proyectos, solo_recientes=solo_recientes)
 
+# Lista los proyectos publicados y prepara sus filtros.
 @app.route('/explorar')
 def explorar():
     filas = []
-    autores = [] 
+    autores = []
     conn = None
     cursor = None
     admin_emails = []
@@ -1324,8 +886,8 @@ def explorar():
     try:
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
-        
-        
+
+
         cursor.execute("""
             SELECT p.id_proyecto AS id,
                    p.titulo,
@@ -1345,7 +907,7 @@ def explorar():
             ORDER BY p.fecha_creacion DESC;
         """)
         filas = cursor.fetchall()
-         
+
         # Obtener autores distintos de proyectos publicados para el filtro
         cursor.execute("""
             SELECT DISTINCT u.id_usuario AS id, u.nombre_completo AS nombre
@@ -1385,67 +947,22 @@ def explorar():
 
     return render_template('explorar_proyectos.html', proyectos=proyectos, autores=autores)
 
+# Muestra información sobre el equipo y la plataforma.
 @app.route('/acerca-de')
 def acerca_de():
     return render_template('acerca_de.html')
 
+# Presenta los términos de uso de Arion.
 @app.route('/terminos-y-condiciones')
 def terminos_condiciones():
     return render_template('terminos-y-condiciones.html')
 
+# Presenta la política de privacidad y tratamiento de datos.
 @app.route('/politica-de-privacidad')
 def politica_privacidad():
     return render_template('politica-de-privacidad.html')
 
-# ==========================================================
-# GUARDAR ETIQUETAS DEL PROYECTO
-# ==========================================================
-
-def guardar_etiquetas(cursor, id_proyecto, texto_etiquetas):
-    nombres = {
-        nombre.strip().lower(): nombre.strip()
-        for nombre in texto_etiquetas.split(',')
-        if nombre.strip()
-    }
-
-    for nombre_normalizado, nombre in nombres.items():
-        cursor.execute("""
-            SELECT id_etiqueta
-            FROM etiquetas
-            WHERE LOWER(nombre_etiqueta) = %s
-            LIMIT 1;
-        """, (nombre_normalizado,))
-
-        etiqueta = cursor.fetchone()
-
-        if etiqueta:
-            id_etiqueta = etiqueta['id_etiqueta']
-        else:
-            cursor.execute("""
-                INSERT INTO etiquetas (nombre_etiqueta)
-                VALUES (%s)
-                RETURNING id_etiqueta;
-            """, (nombre,))
-
-            etiqueta = cursor.fetchone()
-            id_etiqueta = etiqueta['id_etiqueta']
-
-        cursor.execute("""
-            INSERT INTO proyectos_etiquetas (id_proyecto, id_etiqueta)
-            SELECT %s, %s
-            WHERE NOT EXISTS (
-                SELECT 1
-                FROM proyectos_etiquetas
-                WHERE id_proyecto = %s
-                  AND id_etiqueta = %s
-            );
-        """, (
-            id_proyecto,
-            id_etiqueta,
-            id_proyecto,
-            id_etiqueta
-        ))
-
+# Muestra el detalle de un proyecto publicado.
 @app.route('/proyecto/<int:id>')
 @login_required
 def ver_proyecto(id):
@@ -1564,9 +1081,8 @@ def ver_proyecto(id):
                            integrantes=integrantes, documentos=documentos, enlace=enlace,
                            ya_like=ya_like, mi_valoracion=mi_valoracion,
                            total_valoraciones=total_valoraciones, es_autor=es_autor)
-# ==========================================================
-# RUTAS PARA LIKES Y VALORACIONES
-# ==========================================================
+
+# Registra o retira la reacción del usuario al proyecto.
 @app.route('/proyecto/<int:id>/like', methods=['POST'])
 @login_required
 def toggle_like(id):
@@ -1602,7 +1118,7 @@ def toggle_like(id):
         if cursor: cursor.close()
         if conn: conn.close()
 
-
+# Guarda la valoración del usuario para el proyecto.
 @app.route('/proyecto/<int:id>/valorar', methods=['POST'])
 @login_required
 def valorar_proyecto(id):
@@ -1652,57 +1168,7 @@ def valorar_proyecto(id):
         if cursor: cursor.close()
         if conn: conn.close()
 
-# ==========================================================
-# RUTA COMPLETA PARA SUBIR PROYECTOS
-# ==========================================================
-
-def info_archivo(archivo):
-    """Extensión, tamaño y primeros bytes de un archivo subido."""
-    extension = os.path.splitext(archivo.filename or '')[1].lstrip('.').lower()
-    archivo.stream.seek(0, os.SEEK_END)
-    tamano = archivo.stream.tell()
-    archivo.stream.seek(0)
-    cabecera = archivo.stream.read(12)
-    archivo.stream.seek(0)
-    return extension, tamano, cabecera
-
-
-def contenido_valido(extension, cabecera):
-    """Comprueba que el contenido real coincida con la extensión."""
-    if extension == 'png':
-        return cabecera.startswith(b'\x89PNG')
-    if extension in ('jpg', 'jpeg'):
-        return cabecera.startswith(b'\xff\xd8')
-    if extension == 'webp':
-        return cabecera[:4] == b'RIFF' and cabecera[8:12] == b'WEBP'
-    if extension == 'pdf':
-        return cabecera.startswith(b'%PDF')
-    if extension == 'docx':
-        return cabecera.startswith(b'PK\x03\x04')
-    return False
-
-
-def datos_formulario(uid):
-    conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        cursor.execute("SELECT id_categoria AS id, nombre_categoria AS nombre FROM categorias ORDER BY nombre_categoria;")
-        categorias = cursor.fetchall()
-        cursor.execute("""
-            SELECT id_usuario AS id, nombre_completo AS nombre, foto_perfil AS foto
-            FROM usuarios
-            WHERE id_usuario <> %s
-              AND id_tipo = %s
-              AND COALESCE(activo, TRUE) = TRUE
-            ORDER BY nombre_completo;
-        """, (uid, ID_TIPO_ESTUDIANTE))
-        usuarios = cursor.fetchall()
-    finally:
-        cursor.close()
-        conn.close()
-    return {'categorias': categorias, 'usuarios': usuarios}
-
-
+# Muestra y procesa el formulario de publicación de proyectos.
 @app.route('/subir', methods=['GET', 'POST'])
 @login_required
 def subir():
@@ -1884,9 +1350,8 @@ def subir():
     else:
         flash('¡Proyecto guardado en borradores correctamente!', 'success')
     return redirect(url_for('ver_proyecto', id=id_proyecto))
-#=========================================================
-# RUTA DE PERFIL DEL USUARIO
-#=========================================================
+
+# Muestra el perfil y la actividad del usuario.
 @app.route('/perfil')
 @login_required
 def perfil():
@@ -2042,93 +1507,13 @@ def perfil():
         mis_consultas=mis_consultas
     )
 
-# ======================================================
-# RUTA DE RECURSOS
-# ======================================================
-
+# Muestra los recursos disponibles para el usuario.
 @app.route('/recursos')
 @login_required
 def recursos():
     return render_template('recursos.html')
 
-# ======================================================
-# RUTA DE APROBACIONES (SOLO DOCENTES)
-# ======================================================
-
-def docente_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'user_id' not in session:
-            flash('Por favor, inicia sesión para acceder a esta página.', 'warning')
-            return redirect(url_for('login'))
-        if session.get('id_tipo') != ID_TIPO_DOCENTE:
-            abort(403)
-        return f(*args, **kwargs)
-    return decorated_function
-
-
-@app.context_processor
-def inyectar_pendientes_docente():
-    if session.get('user_id') and session.get('id_tipo') == ID_TIPO_DOCENTE:
-        conn = cur = None
-        try:
-            conn = get_db_connection()
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("SELECT nombre_completo FROM usuarios WHERE id_usuario = %s;", (session['user_id'],))
-            docente = cur.fetchone()
-            nombre_docente = (docente['nombre_completo'] or '').strip() if docente else ''
-
-            cur.execute("""
-                SELECT COUNT(*) AS total
-                FROM proyectos
-                WHERE LOWER(COALESCE(estado, '')) = 'pendiente'
-                  AND LOWER(TRIM(COALESCE(profesor_a_cargo, ''))) = LOWER(TRIM(%s));
-            """, (nombre_docente,))
-            fila = cur.fetchone()
-            return {'pendientes_revision_count': fila['total'] if fila else 0}
-        except Exception:
-            app.logger.exception('Error calculando pendientes del docente')
-            return {'pendientes_revision_count': 0}
-        finally:
-            if cur: cur.close()
-            if conn: conn.close()
-    return {'pendientes_revision_count': 0}
-
-@app.context_processor
-def inyectar_notificaciones_usuario():
-    uid = session.get('user_id')
-    if not uid or session.get('id_tipo') != ID_TIPO_ESTUDIANTE:
-        return {'notificaciones_usuario': [], 'notificaciones_count': 0}
-
-    conn = cur = None
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("""
-            SELECT id_notificacion AS id,
-                   tipo,
-                   titulo,
-                   mensaje,
-                   motivo,
-                   url_destino AS url,
-                   fecha_creacion
-            FROM notificaciones_usuario
-            WHERE id_usuario = %s
-              AND leida = FALSE
-            ORDER BY fecha_creacion DESC, id_notificacion DESC
-            LIMIT 10;
-        """, (uid,))
-        avisos = [dict(f) for f in cur.fetchall()]
-        return {'notificaciones_usuario': avisos, 'notificaciones_count': len(avisos)}
-    except Exception:
-        app.logger.exception('Error cargando notificaciones del usuario')
-        return {'notificaciones_usuario': [], 'notificaciones_count': 0}
-    finally:
-        if cur:
-            cur.close()
-        if conn:
-            conn.close()
-
+# Marca como leídas las notificaciones seleccionadas.
 @app.route('/notificaciones/leer', methods=['POST'])
 @login_required
 def marcar_notificaciones_leidas():
@@ -2166,238 +1551,7 @@ def marcar_notificaciones_leidas():
         destino = url_for('perfil') + '#tab-borradores'
     return redirect(destino)
 
-@app.route('/aprobaciones')
-@docente_required
-def aprobaciones():
-    uid = session['user_id']
-    conn = None
-    cur = None
-    proyectos_pendientes = []
-
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        cur.execute("""
-            SELECT nombre_completo
-            FROM usuarios
-            WHERE id_usuario = %s;
-        """, (uid,))
-        docente = cur.fetchone()
-        nombre_docente = (docente['nombre_completo'] or '').strip() if docente else ''
-
-        cur.execute("""
-            SELECT
-                p.id_proyecto,
-                p.titulo,
-                p.descripcion,
-                p.grado,
-                p.profesor_a_cargo,
-                p.imagen_portada,
-                p.fecha_creacion,
-                c.nombre_categoria AS categoria,
-                u.nombre_completo AS autor
-            FROM proyectos p
-            LEFT JOIN usuarios u ON p.id_usuario = u.id_usuario
-            LEFT JOIN categorias c ON p.id_categoria = c.id_categoria
-            WHERE LOWER(COALESCE(p.estado, '')) = 'pendiente'
-              AND LOWER(TRIM(COALESCE(p.profesor_a_cargo, ''))) = LOWER(TRIM(%s))
-            ORDER BY p.id_proyecto DESC;
-        """, (nombre_docente,))
-
-        proyectos_pendientes = cur.fetchall()
-
-    except Exception as e:
-        app.logger.exception('Error al cargar proyectos en /aprobaciones: %s', e)
-        flash('No se pudieron cargar los proyectos pendientes desde la base de datos.', 'danger')
-
-    finally:
-        if cur:
-            cur.close()
-        if conn:
-            conn.close()
-
-    return render_template(
-        'aprobaciones.html',
-        proyectos=proyectos_pendientes,
-        pendientes_count=len(proyectos_pendientes)
-    )
-
-
-# ======================================================
-# RUTA DE APROBAR PROYECTO
-# ======================================================
-@app.route('/aprobaciones/<int:id>/aprobar', methods=['POST'])
-@docente_required
-def aprobar_proyecto(id):
-    uid = session['user_id']
-    conn = cur = None
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        cur.execute("SELECT nombre_completo FROM usuarios WHERE id_usuario = %s;", (uid,))
-        docente = cur.fetchone()
-        nombre_docente = (docente['nombre_completo'] or '').strip().lower() if docente else ''
-
-        cur.execute("""
-            SELECT id_proyecto, profesor_a_cargo
-            FROM proyectos
-            WHERE id_proyecto = %s;
-        """, (id,))
-        proyecto = cur.fetchone()
-
-        if not proyecto:
-            flash('El proyecto no existe.', 'danger')
-            return redirect(url_for('aprobaciones'))
-
-        if (proyecto['profesor_a_cargo'] or '').strip().lower() != nombre_docente:
-            flash('No tienes permiso para aprobar este proyecto.', 'danger')
-            return redirect(url_for('aprobaciones'))
-
-        cur.execute("""
-            UPDATE proyectos
-            SET estado = 'Publicado',
-                motivo_rechazo = NULL
-            WHERE id_proyecto = %s;
-        """, (id,))
-        cur.execute("SELECT id_usuario, titulo FROM proyectos WHERE id_proyecto = %s;", (id,))
-        datos_proy = cur.fetchone()
-        if datos_proy and datos_proy.get('id_usuario'):
-            cur.execute("""
-                INSERT INTO notificaciones_usuario (
-                    id_usuario, id_proyecto, tipo, titulo, mensaje, motivo, url_destino, leida
-                )
-                VALUES (%s, %s, 'aprobado', %s, %s, NULL, %s, FALSE);
-            """, (
-                datos_proy['id_usuario'],
-                id,
-                datos_proy.get('titulo') or 'Proyecto',
-                'Tu proyecto fue aprobado y ya está publicado.',
-                url_for('ver_proyecto', id=id)
-            ))
-        conn.commit()
-        flash('¡Proyecto aprobado y publicado correctamente!', 'success')
-    except Exception:
-        if conn:
-            conn.rollback()
-        app.logger.exception('Error al aprobar el proyecto')
-        flash('No se pudo aprobar el proyecto.', 'danger')
-    finally:
-        if cur:
-            cur.close()
-        if conn:
-            conn.close()
-
-    return redirect(url_for('aprobaciones'))
-
-
-# ======================================================
-# RUTA DE RECHAZAR PROYECTO
-# ======================================================
-@app.route('/aprobaciones/<int:id>/rechazar', methods=['POST'])
-@docente_required
-def rechazar_proyecto(id):
-    uid = session['user_id']
-    motivo = (request.form.get('motivo_rechazo') or '').strip()
-
-    if not motivo:
-        flash('Debes escribir las observaciones o el motivo del rechazo.', 'warning')
-        return redirect(url_for('aprobaciones'))
-
-    conn = cur = None
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        cur.execute("SELECT nombre_completo FROM usuarios WHERE id_usuario = %s;", (uid,))
-        docente = cur.fetchone()
-        nombre_docente = (docente['nombre_completo'] or '').strip().lower() if docente else ''
-
-        cur.execute("""
-            SELECT id_proyecto, profesor_a_cargo
-            FROM proyectos
-            WHERE id_proyecto = %s;
-        """, (id,))
-        proyecto = cur.fetchone()
-
-        if not proyecto:
-            flash('El proyecto no existe.', 'danger')
-            return redirect(url_for('aprobaciones'))
-
-        if (proyecto['profesor_a_cargo'] or '').strip().lower() != nombre_docente:
-            flash('No tienes permiso para rechazar este proyecto.', 'danger')
-            return redirect(url_for('aprobaciones'))
-
-        cur.execute("""
-            UPDATE proyectos
-            SET estado = 'Borrador',
-                motivo_rechazo = %s
-            WHERE id_proyecto = %s;
-        """, (motivo, id))
-
-        cur.execute("SELECT id_usuario, titulo FROM proyectos WHERE id_proyecto = %s;", (id,))
-        datos_proy = cur.fetchone()
-        if datos_proy and datos_proy.get('id_usuario'):
-            cur.execute("""
-                INSERT INTO notificaciones_usuario (
-                    id_usuario, id_proyecto, tipo, titulo, mensaje, motivo, url_destino, leida
-                )
-                VALUES (%s, %s, 'rechazado', %s, %s, %s, %s, FALSE);
-            """, (
-                datos_proy['id_usuario'],
-                id,
-                datos_proy.get('titulo') or 'Proyecto',
-                'Tu proyecto fue rechazado y devuelto a borradores.',
-                motivo,
-                url_for('perfil') + '#tab-borradores'
-            ))
-        conn.commit()
-        flash('Proyecto devuelto a borrador con las observaciones.', 'success')
-    except Exception:
-        if conn:
-            conn.rollback()
-        app.logger.exception('Error al rechazar el proyecto')
-        flash('No se pudo rechazar el proyecto.', 'danger')
-    finally:
-        if cur:
-            cur.close()
-        if conn:
-            conn.close()
-
-    return redirect(url_for('aprobaciones'))
-# =====================================================================
-# MANEJO DE ERRORES 
-# =====================================================================
-@app.errorhandler(413)
-def archivo_muy_grande(e):
-    flash('El envío es demasiado grande. La portada puede pesar máximo 5 MB y los documentos, 10 MB en total.', 'danger')
-    return redirect(url_for('subir'))
-
-# Captura el error 404 (Página no encontrada)
-@app.errorhandler(404)
-def page_not_found(e):
-    # plantillas específicas no existen en el proyecto; usar una respuesta segura
-    try:
-        return render_template('base.html'), 404
-    except Exception:
-        return "Página no encontrada.", 404
-
-@app.route('/error-registro')
-def user_not_registered_error():
-    flash('Continúa con Google usando tu cuenta institucional.', 'warning')
-    return redirect(url_for('login'))
-
-# Ruta auxiliar para cerrar sesión
-@app.route('/logout')
-def logout():
-    session.clear()
-    flash('Has cerrado sesión correctamente.', 'success')
-    return redirect(url_for('login'))
-
-#=========================================================
-# RUTAS DE EDICIÓN DE PROYECTOS   
-#=========================================================
+# Actualiza los datos y archivos de un proyecto existente.
 @app.route('/proyecto/<int:id>/editar', methods=['POST'])
 @login_required
 def editar_proyecto(id):
@@ -2588,9 +1742,8 @@ def editar_proyecto(id):
         conn.close()
 
     return redirect(url_for('perfil'))
-#=========================================================
-# RUTAS DE ELIMINACIÓN DE PROYECTOS   
-#=========================================================
+
+# Elimina un proyecto del usuario autenticado.
 @app.route('/proyecto/<int:id>/eliminar', methods=['POST'])
 @login_required
 def eliminar_proyecto(id):
@@ -2615,9 +1768,7 @@ def eliminar_proyecto(id):
         conn.close()
     return redirect(url_for('perfil'))
 
-# ==========================================================
-# RUTA DE SOPORTE
-# ==========================================================
+# Muestra el formulario y registra consultas de soporte.
 @app.route('/soporte', methods=['GET', 'POST'])
 def soporte():
     if request.method == 'GET':
@@ -2669,9 +1820,613 @@ def soporte():
 
     flash('¡Tu consulta fue registrada correctamente!', 'success')
     return redirect(url_for('soporte'))
-#=========================================================
-# RUTA DE RESPONDER SOPORTE (SOLO ADMIN)
-#=========================================================
+
+
+
+# ADMINISTRACIÓN
+# Muestra el resumen de actividad del panel administrativo.
+@app.route('/admin/')
+@admin_required_inicial
+def admin_dashboard():
+    stats = consultar("""
+        SELECT
+            (SELECT COUNT(*) FROM proyectos) AS total_proyectos,
+            (SELECT COUNT(*) FROM proyectos
+              WHERE fecha_creacion >= date_trunc('month', now())) AS creados_este_mes,
+            (SELECT COUNT(*) FROM proyectos
+              WHERE fecha_creacion >= date_trunc('month', now()) - interval '1 month'
+                AND fecha_creacion <  date_trunc('month', now())) AS creados_mes_anterior,
+            (SELECT COUNT(*) FROM usuarios u
+               JOIN tipos_usuario t ON t.id_tipo = u.id_tipo
+              WHERE u.activo AND LEFT(LOWER(t.nombre_tipo), 5) = 'estud') AS estudiantes,
+            (SELECT COUNT(*) FROM proyectos WHERE estado = 'Pendiente') AS pendientes,
+            (SELECT COUNT(*) FROM reportes_proyecto WHERE NOT resuelto) AS reportes
+    """, uno=True)
+
+    # Variación mensual; si el mes pasado no hubo proyectos no hay base para el porcentaje
+    anterior = stats['creados_mes_anterior']
+    variacion = None
+    if anterior:
+        variacion = round((stats['creados_este_mes'] - anterior) / anterior * 100)
+
+    pendientes = consultar("""
+        SELECT p.id_proyecto, p.titulo, p.grado, p.fecha_creacion,
+               u.nombre_completo AS autor,
+               c.nombre_categoria AS categoria
+        FROM proyectos p
+        JOIN usuarios u ON u.id_usuario = p.id_usuario
+        LEFT JOIN categorias c ON c.id_categoria = p.id_categoria
+        WHERE p.estado = 'Pendiente'
+        ORDER BY p.fecha_creacion DESC
+        LIMIT 5
+    """)
+
+    return render_template('admin/dashboard.html',
+                            stats=stats, variacion=variacion, pendientes=pendientes)
+
+# Lista los proyectos para su gestión administrativa.
+@app.route('/admin/proyectos')
+@admin_required_inicial
+def admin_proyectos():
+    estado = request.args.get('estado', '')
+    if estado not in ESTADOS_MODERABLES:
+        estado = ''
+    q = (request.args.get('q') or '').strip()
+    pagina = max(request.args.get('pagina', 1, type=int), 1)
+
+    # Los números de las pestañas no dependen del filtro ni de la búsqueda
+    conteos = consultar("""
+        SELECT COUNT(*) FILTER (WHERE estado IN ('Pendiente', 'Publicado', 'Rechazado')) AS todos,
+               COUNT(*) FILTER (WHERE estado = 'Pendiente') AS pendientes,
+               COUNT(*) FILTER (WHERE estado = 'Publicado') AS publicados,
+               COUNT(*) FILTER (WHERE estado = 'Rechazado') AS rechazados
+        FROM proyectos
+    """, uno=True)
+
+    # El WHERE se arma solo con texto fijo; lo que escribe el usuario va siempre en params
+    condiciones = ["p.estado IN ('Pendiente', 'Publicado', 'Rechazado')"]
+    params = []
+    if estado:
+        condiciones.append("p.estado = %s")
+        params.append(estado)
+    if q:
+        condiciones.append("(p.titulo ILIKE %s OR u.nombre_completo ILIKE %s)")
+        params += [f'%{q}%', f'%{q}%']
+    where = ' AND '.join(condiciones)
+
+    total = consultar(f"""
+        SELECT COUNT(*) AS n
+        FROM proyectos p
+        LEFT JOIN usuarios u ON u.id_usuario = p.id_usuario
+        WHERE {where}
+    """, params, uno=True)['n']
+
+    total_paginas = max(math.ceil(total / PROYECTOS_POR_PAGINA), 1)
+    pagina = min(pagina, total_paginas)
+
+    proyectos = consultar(f"""
+        SELECT p.id_proyecto, p.titulo, p.imagen_portada, p.grado, p.estado,
+               p.es_destacado, p.fecha_creacion,
+               u.nombre_completo AS autor,
+               c.nombre_categoria AS categoria
+        FROM proyectos p
+        LEFT JOIN usuarios u ON u.id_usuario = p.id_usuario
+        LEFT JOIN categorias c ON c.id_categoria = p.id_categoria
+        WHERE {where}
+        ORDER BY (p.estado = 'Pendiente') DESC, p.fecha_creacion DESC
+        LIMIT %s OFFSET %s
+    """, params + [PROYECTOS_POR_PAGINA, (pagina - 1) * PROYECTOS_POR_PAGINA])
+
+    return render_template('admin/proyectos.html',
+                           proyectos=proyectos, conteos=conteos, estado=estado, q=q,
+                           pagina=pagina, total_paginas=total_paginas, total=total)
+
+# Muestra la ficha de revisión de un proyecto.
+@app.route('/admin/proyectos/<int:id>')
+@admin_required_inicial
+def admin_revisar_proyecto(id):
+    proyecto = consultar("""
+        SELECT p.*,
+               u.nombre_completo AS autor,
+               u.correo_usuario  AS autor_correo,
+               c.nombre_categoria AS categoria
+        FROM proyectos p
+        LEFT JOIN usuarios u ON u.id_usuario = p.id_usuario
+        LEFT JOIN categorias c ON c.id_categoria = p.id_categoria
+        WHERE p.id_proyecto = %s
+    """, (id,), uno=True)
+
+    if not proyecto:
+        abort(404)
+
+    etiquetas = consultar("""
+        SELECT e.nombre_etiqueta
+        FROM proyectos_etiquetas pe
+        JOIN etiquetas e ON e.id_etiqueta = pe.id_etiqueta
+        WHERE pe.id_proyecto = %s
+        ORDER BY e.nombre_etiqueta
+    """, (id,))
+
+    documentos = consultar("""
+        SELECT nombre_archivo, url_archivo, tipo_documento, tamano_bytes, fecha_subida
+        FROM documentos_proyecto
+        WHERE id_proyecto = %s
+        ORDER BY fecha_subida
+    """, (id,))
+
+    colaboradores = consultar("""
+        SELECT u.nombre_completo, pc.rol_en_equipo
+        FROM proyecto_colaboradores pc
+        JOIN usuarios u ON u.id_usuario = pc.id_usuario
+        WHERE pc.id_proyecto = %s
+        ORDER BY (pc.rol_en_equipo = 'Autor') DESC, u.nombre_completo
+    """, (id,))
+
+    reportes = consultar("""
+        SELECT r.motivo, r.fecha, u.nombre_completo AS reportado_por
+        FROM reportes_proyecto r
+        LEFT JOIN usuarios u ON u.id_usuario = r.id_usuario
+        WHERE r.id_proyecto = %s AND NOT r.resuelto
+        ORDER BY r.fecha DESC
+    """, (id,))
+
+    volver_url = destino_volver()
+    if urlsplit(volver_url).path == '/admin/proyectos':
+        volver_texto = 'Volver a proyectos'
+    else:
+        volver_texto = 'Volver al dashboard'
+
+    return render_template('admin/revisar_proyecto.html',
+                            p=proyecto, etiquetas=etiquetas, documentos=documentos,
+                            colaboradores=colaboradores, reportes=reportes,
+                            volver_url=volver_url, volver_texto=volver_texto)
+
+# Aprueba un proyecto desde el panel administrativo.
+@app.route('/admin/proyectos/<int:id>/aprobar', methods=['POST'])
+@admin_required_inicial
+def admin_aprobar_proyecto(id):
+    filas = ejecutar("""
+        UPDATE proyectos
+        SET estado = 'Publicado',
+            motivo_rechazo = NULL
+        WHERE id_proyecto = %s AND estado = 'Pendiente'
+    """, (id,))
+
+    if filas:
+        flash('Proyecto aprobado y publicado.', 'success')
+    else:
+        flash('Ese proyecto ya no está pendiente.', 'warning')
+
+    # Vuelve a la página desde donde se pulsó el botón
+    return redirect(request.referrer or url_for('admin_dashboard'))
+
+# Rechaza un proyecto desde el panel administrativo.
+@app.route('/admin/proyectos/<int:id>/rechazar', methods=['POST'])
+@admin_required_inicial
+def admin_rechazar_proyecto(id):
+    motivo = (request.form.get('motivo') or '').strip()
+    volver = destino_volver()
+
+    # El estudiante necesita saber qué corregir, así que el motivo es obligatorio
+    if len(motivo) < 10:
+        flash('Escribe un motivo de rechazo (mínimo 10 caracteres).', 'warning')
+        return redirect(url_for('admin_revisar_proyecto', id=id, volver=volver))
+
+    filas = ejecutar("""
+        UPDATE proyectos
+        SET estado = 'Rechazado', motivo_rechazo = %s
+        WHERE id_proyecto = %s AND estado = 'Pendiente'
+    """, (motivo, id))
+
+    if filas:
+        flash('Proyecto rechazado.', 'success')
+    else:
+        flash('Ese proyecto ya no está pendiente.', 'warning')
+
+    return redirect(volver)
+
+# Alterna el estado destacado de un proyecto.
+@app.route('/admin/proyectos/<int:id>/destacar', methods=['POST'])
+@admin_required_inicial
+def admin_destacar_proyecto(id):
+    destacar = request.form.get('valor') == '1'
+
+    # Solo se pueden destacar proyectos ya publicados
+    filas = ejecutar("""
+        UPDATE proyectos
+        SET es_destacado = %s
+        WHERE id_proyecto = %s AND estado = 'Publicado'
+    """, (destacar, id))
+
+    if not filas:
+        flash('Solo los proyectos publicados pueden destacarse.', 'warning')
+    elif destacar:
+        flash('Proyecto destacado.', 'success')
+    else:
+        flash('Se quitó el destacado del proyecto.', 'success')
+
+    return redirect(request.referrer or url_for('admin_proyectos'))
+
+# Elimina un proyecto desde el panel administrativo.
+@app.route('/admin/proyectos/<int:id>/eliminar', methods=['POST'])
+@admin_required_inicial
+def admin_eliminar_proyecto(id):
+    # Se anotan los archivos antes de borrar, porque el DELETE se lleva
+    # también las filas de documentos_proyecto (ON DELETE CASCADE)
+    archivos = consultar("""
+        SELECT url_archivo AS ruta FROM documentos_proyecto WHERE id_proyecto = %s
+        UNION ALL
+        SELECT imagen_portada FROM proyectos
+        WHERE id_proyecto = %s AND imagen_portada IS NOT NULL
+    """, (id, id))
+
+    filas = ejecutar("DELETE FROM proyectos WHERE id_proyecto = %s", (id,))
+
+    if filas:
+        for a in archivos:
+            borrar_archivo_subido(a['ruta'])
+        flash('Proyecto eliminado.', 'success')
+    else:
+        flash('Ese proyecto ya no existe.', 'warning')
+
+    return redirect(request.referrer or url_for('admin_proyectos'))
+
+# Muestra los reportes y consultas de soporte recibidos.
+@app.route('/admin/reportes')
+@admin_required_inicial
+def admin_reportes():
+    consultas = consultar("""
+        SELECT s.id_soporte,
+               u.nombre_completo AS nombre,
+               u.correo_usuario AS correo,
+               s.asunto,
+               s.descripcion,
+               s.estado
+        FROM soporte s
+        JOIN usuarios u ON u.id_usuario = s.usuario_id
+        ORDER BY CASE WHEN LOWER(s.estado) = 'pendiente' THEN 0 ELSE 1 END,
+                 s.fecha_creacion DESC;
+    """)
+    total_consultas = len(consultas)
+    consultas_pendientes = sum(
+        1 for consulta in consultas
+        if (consulta.get('estado') or '').strip().lower() == 'pendiente'
+    )
+
+    anios_disponibles = consultar("""
+        SELECT DISTINCT EXTRACT(YEAR FROM fecha_creacion)::int AS anio
+        FROM proyectos
+        WHERE LOWER(estado) = 'publicado'
+        ORDER BY anio DESC;
+    """)
+    anios_disponibles = [fila['anio'] for fila in anios_disponibles]
+    anio_solicitado = request.args.get('anio', type=int)
+    anio_actual = anio_solicitado if anio_solicitado in anios_disponibles else (
+        anios_disponibles[0] if anios_disponibles else datetime.now().year
+    )
+
+    proyectos_por_mes = consultar("""
+        SELECT EXTRACT(MONTH FROM fecha_creacion)::int AS mes, COUNT(*) AS total
+        FROM proyectos
+        WHERE LOWER(estado) = 'publicado'
+          AND EXTRACT(YEAR FROM fecha_creacion) = %s
+        GROUP BY mes
+        ORDER BY mes;
+    """, (anio_actual,))
+    totales_por_mes = {fila['mes']: fila['total'] for fila in proyectos_por_mes}
+    nombres_meses = (
+        'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+    )
+    max_proyectos_mes = max(totales_por_mes.values(), default=0)
+    meses = [
+        {
+            'nombre': nombre,
+            'total': totales_por_mes.get(numero, 0),
+            'porcentaje': (
+                totales_por_mes.get(numero, 0) * 100 / max_proyectos_mes
+                if max_proyectos_mes else 0
+            ),
+        }
+        for numero, nombre in enumerate(nombres_meses, start=1)
+    ]
+
+    categorias = consultar("""
+        SELECT COALESCE(c.nombre_categoria, 'Sin categoría') AS nombre,
+               COUNT(*) AS total
+        FROM proyectos p
+        LEFT JOIN categorias c ON c.id_categoria = p.id_categoria
+        WHERE LOWER(p.estado) = 'publicado'
+          AND EXTRACT(YEAR FROM p.fecha_creacion) = %s
+        GROUP BY nombre
+        ORDER BY total DESC, nombre;
+    """, (anio_actual,))
+    total_proyectos_anio = sum(categoria['total'] for categoria in categorias)
+    for categoria in categorias:
+        categoria['porcentaje'] = (
+            categoria['total'] * 100 / total_proyectos_anio
+            if total_proyectos_anio else 0
+        )
+
+    estudiantes = consultar("""
+        SELECT u.nombre_completo AS nombre,
+               u.grado,
+               COUNT(p.id_proyecto) AS proyectos,
+               AVG(p.calificacion)::float AS valoracion_promedio,
+               COALESCE(SUM(p.vistas_count), 0) AS vistas_totales
+        FROM usuarios u
+        JOIN proyectos p ON p.id_usuario = u.id_usuario
+        WHERE u.id_tipo = %s
+          AND LOWER(p.estado) = 'publicado'
+          AND EXTRACT(YEAR FROM p.fecha_creacion) = %s
+        GROUP BY u.id_usuario, u.nombre_completo, u.grado
+        ORDER BY vistas_totales DESC, proyectos DESC, u.nombre_completo
+        LIMIT 10;
+    """, (ID_TIPO_ESTUDIANTE, anio_actual))
+
+    return render_template(
+        'admin/reportes.html',
+        consultas=consultas,
+        total_consultas=total_consultas,
+        consultas_pendientes=consultas_pendientes,
+        otras_consultas=total_consultas - consultas_pendientes,
+        anios_disponibles=anios_disponibles or [anio_actual],
+        anio_actual=anio_actual,
+        meses=meses,
+        categorias=categorias,
+        total_proyectos_anio=total_proyectos_anio,
+        estudiantes=estudiantes,
+    )
+
+# Muestra la configuración de la plataforma.
+@app.route('/admin/configuracion')
+@admin_required_inicial
+def admin_configuracion():
+    seccion = request.args.get('seccion', 'general')
+    if seccion not in SECCIONES_CONFIG:
+        seccion = 'general'
+
+    config = leer_config()
+    datos = {}
+
+    if seccion == 'categorias':
+        datos['categorias'] = consultar("""
+            SELECT c.id_categoria, c.nombre_categoria, c.descripcion,
+                    COUNT(p.id_proyecto) AS proyectos
+            FROM categorias c
+            LEFT JOIN proyectos p ON p.id_categoria = c.id_categoria
+            GROUP BY c.id_categoria
+            ORDER BY c.nombre_categoria
+        """)
+
+    elif seccion == 'almacenamiento':
+        # Se mide lo que realmente hay en disco (portadas y documentos), no una cifra guardada
+        carpeta = os.path.join(app.static_folder, 'uploads')
+        portadas = bytes_en_carpeta(os.path.join(carpeta, 'proyectos'))
+        documentos = bytes_en_carpeta(os.path.join(carpeta, 'documentos'))
+        usado = portadas + documentos
+        total = config['almacenamiento_total_gb'] * 1024 ** 3
+        datos.update(usado=usado, total=total, portadas=portadas, documentos=documentos,
+                     porcentaje=min(round(usado * 100 / total, 1), 100) if total else 0)
+
+    elif seccion == 'permisos':
+        filas = consultar("SELECT accion, rol, permitido FROM permisos_rol")
+        datos['marcados'] = {f"{f['accion']}__{f['rol']}": f['permitido'] for f in filas}
+        datos['acciones'] = PERMISOS_ACCIONES
+        datos['roles'] = PERMISOS_ROLES
+        datos['fijos'] = {f"{a}__{r}" for a, r in PERMISOS_FIJOS}
+
+    return render_template('admin/configuracion.html', seccion=seccion, config=config, **datos)
+
+# Guarda los cambios de configuración general.
+@app.route('/admin/configuracion/general', methods=['POST'])
+@admin_required_inicial
+def admin_guardar_general():
+    institucion = (request.form.get('institucion') or '').strip()
+    anio = (request.form.get('anio_lectivo') or '').strip()
+    max_mb = request.form.get('max_mb', type=int)
+
+    if not institucion or len(institucion) > 150:
+        flash('El nombre de la institución es obligatorio (máximo 150 caracteres).', 'warning')
+        return volver_config('general')
+    if not anio or len(anio) > 50:
+        flash('El año lectivo es obligatorio (máximo 50 caracteres).', 'warning')
+        return volver_config('general')
+    # El servidor acepta 16 MB por envío (MAX_CONTENT_LENGTH), así que un archivo no puede pasar de ahí
+    if max_mb is None or not 1 <= max_mb <= 15:
+        flash('El tamaño máximo por archivo debe estar entre 1 y 15 MB.', 'warning')
+        return volver_config('general')
+
+    guardar_config({
+        'institucion': institucion,
+        'anio_lectivo': anio,
+        'max_mb': max_mb,
+        'moderacion': request.form.get('moderacion') == 'on',
+    })
+    flash('Parámetros generales guardados.', 'success')
+    return volver_config('general')
+
+# Crea una categoría para clasificar proyectos.
+@app.route('/admin/configuracion/categorias/crear', methods=['POST'])
+@admin_required_inicial
+def admin_crear_categoria():
+    nombre = (request.form.get('nombre') or '').strip()
+    descripcion = (request.form.get('descripcion') or '').strip()[:300] or None
+
+    if not nombre or len(nombre) > 100:
+        flash('El nombre de la categoría es obligatorio (máximo 100 caracteres).', 'warning')
+        return volver_config('categorias')
+
+    # La BD ya impide nombres repetidos, pero así se compara sin importar mayúsculas
+    existe = consultar("SELECT 1 FROM categorias WHERE LOWER(BTRIM(nombre_categoria)) = LOWER(%s)",
+                        (nombre,), uno=True)
+    if existe:
+        flash(f'Ya existe una categoría llamada «{nombre}».', 'warning')
+        return volver_config('categorias')
+
+    ejecutar("""INSERT INTO categorias (nombre_categoria, descripcion)
+                VALUES (%s, %s)""", (nombre, descripcion))
+    flash(f'Categoría «{nombre}» creada.', 'success')
+    return volver_config('categorias')
+
+# Elimina una categoría existente.
+@app.route('/admin/configuracion/categorias/<int:id>/eliminar', methods=['POST'])
+@admin_required_inicial
+def admin_eliminar_categoria(id):
+    cat = consultar("""
+        SELECT nombre_categoria,
+               (SELECT COUNT(*) FROM proyectos WHERE id_categoria = %s) AS proyectos,
+               (SELECT COUNT(*) FROM categorias) AS total
+        FROM categorias WHERE id_categoria = %s
+    """, (id, id), uno=True)
+
+    if not cat:
+        flash('Esa categoría ya no existe.', 'warning')
+        return volver_config('categorias')
+    # Al subir un proyecto es obligatorio elegir categoría, sin ninguna nadie podría subir
+    if cat['total'] <= 1:
+        flash('No puedes eliminar la única categoría que queda.', 'warning')
+        return volver_config('categorias')
+
+    ejecutar("DELETE FROM categorias WHERE id_categoria = %s", (id,))
+    mensaje = f"Categoría «{cat['nombre_categoria']}» eliminada."
+    if cat['proyectos']:
+        mensaje += f" {cat['proyectos']} proyecto(s) quedaron sin categoría."
+    flash(mensaje, 'success')
+    return volver_config('categorias')
+
+# Guarda los límites de almacenamiento configurados.
+@app.route('/admin/configuracion/almacenamiento', methods=['POST'])
+@admin_required_inicial
+def admin_guardar_almacenamiento():
+    permite_pdf = request.form.get('permite_pdf') == 'on'
+    permite_docx = request.form.get('permite_docx') == 'on'
+
+    if not (permite_pdf or permite_docx):
+        flash('Debe quedar al menos un formato permitido.', 'warning')
+        return volver_config('almacenamiento')
+
+    guardar_config({'permite_pdf': permite_pdf, 'permite_docx': permite_docx})
+    flash('Formatos permitidos guardados.', 'success')
+    return volver_config('almacenamiento')
+
+# Guarda los permisos configurados para los roles.
+@app.route('/admin/configuracion/permisos', methods=['POST'])
+@admin_required_inicial
+def admin_guardar_permisos():
+    sentencias = []
+    for accion, _ in PERMISOS_ACCIONES:
+        for rol, _ in PERMISOS_ROLES:
+            if (accion, rol) in PERMISOS_FIJOS:
+                continue            # las celdas fijas no se tocan aunque alguien manipule el formulario
+            marcado = f'{accion}__{rol}' in request.form
+            sentencias.append((
+                "UPDATE permisos_rol SET permitido = %s WHERE accion = %s AND rol = %s",
+                (marcado, accion, rol)))
+
+    ejecutar_lote(sentencias)
+    flash('Permisos guardados.', 'success')
+    return volver_config('permisos')
+
+# Lista las cuentas para su gestión administrativa.
+@app.route('/admin/usuarios')
+@admin_required_inicial
+def admin_usuarios():
+    q = request.args.get('q', '').strip()
+    rol = request.args.get('rol', type=int)              # id_tipo elegido en el filtro (o None)
+    grado = request.args.get('grado', '')
+
+    # El WHERE se arma por pedazos según los filtros que lleguen. Los valores van siempre
+    # en `params` (nunca pegados al texto del SQL) para evitar inyección.
+    filtros, params = [], []
+    if q:
+        filtros.append("(LOWER(u.nombre_completo) LIKE %s OR LOWER(u.correo_usuario) LIKE %s "
+                       "OR CAST(u.id_usuario AS TEXT) LIKE %s)")
+        params += [f"%{q.lower()}%"] * 3
+    if rol:
+        filtros.append("u.id_tipo = %s")
+        params.append(rol)
+    if grado:
+        filtros.append("u.grado = %s")
+        params.append(grado)
+    donde = ("WHERE " + " AND ".join(filtros)) if filtros else ""
+    desde = "FROM usuarios u LEFT JOIN tipos_usuario t ON t.id_tipo = u.id_tipo"
+
+    # Paginación: 10 por página. El total sirve para saber cuántas páginas hay.
+    por_pagina = 10
+    total = consultar(f"SELECT COUNT(*) AS n {desde} {donde}", params, uno=True)['n']
+    paginas = max(1, -(-total // por_pagina))            # división hacia arriba
+    pagina = min(max(request.args.get('page', 1, type=int), 1), paginas)
+
+    filas = consultar(f"""
+        SELECT u.id_usuario AS id, u.nombre_completo AS nombre, u.correo_usuario AS correo,
+               u.id_tipo, t.nombre_tipo AS rol, u.grado, u.activo
+        {desde} {donde}
+        ORDER BY u.nombre_completo
+        LIMIT %s OFFSET %s
+    """, params + [por_pagina, (pagina - 1) * por_pagina])
+    for u in filas:                                      # datos listos para que la plantilla los muestre tal cual
+        u['rol'] = u['rol'] or 'Sin rol'
+        u['es_admin'] = u['id_tipo'] == ID_TIPO_ADMIN
+        u['rol_clave'] = rol_clave(u['id_tipo'])
+        u['grado'] = u['grado'] or 'N/A'
+        u['estado'] = 'Activo' if u['activo'] else 'Inactivo'
+
+    # Opciones de los filtros y del modal de edición
+    roles = consultar("SELECT id_tipo AS id, nombre_tipo AS nombre FROM tipos_usuario ORDER BY id_tipo")
+    grados = [g['grado'] for g in consultar(
+        "SELECT DISTINCT grado FROM usuarios WHERE grado IS NOT NULL AND grado <> '' ORDER BY grado")]
+    return render_template('admin/usuarios.html', usuarios=filas, total=total, pagina=pagina,
+                           paginas=paginas, q=q, rol=rol, grado=grado, grados=grados, roles=roles,
+                           roles_editables=[r for r in roles if r['id'] != ID_TIPO_ADMIN])
+
+# Actualiza los datos de una cuenta desde el panel.
+@app.route('/admin/api/usuarios/<int:uid>', methods=['PUT'])
+@admin_required_inicial
+@api_seguro
+def admin_api_editar_usuario(uid):
+    d = request.get_json(silent=True) or {}
+    nombre = (d.get('nombre') or '').strip()
+    if not nombre:
+        return _no('El nombre es obligatorio.', 400)
+
+    # El rol llega como id. Se comprueba que exista en tipos_usuario y que no sea el de
+    # administrador: ese rol no se asigna desde esta pantalla.
+    try:
+        id_tipo = int(d.get('rol'))
+    except (TypeError, ValueError):
+        return _no('Rol no válido.', 400)
+    existe = consultar("SELECT 1 FROM tipos_usuario WHERE id_tipo = %s", (id_tipo,), uno=True)
+    if not existe or id_tipo == ID_TIPO_ADMIN:
+        return _no('Rol no válido.', 400)
+
+    # Los docentes no tienen grado; a los estudiantes se les recorta a 10 caracteres (el tamaño de la columna)
+    grado = None if id_tipo == ID_TIPO_DOCENTE else ((d.get('grado') or '').strip()[:10] or None)
+
+    # El "id_tipo <> admin" del final evita que se pueda editar a un administrador desde acá
+    fila = ejecutar_uno("""UPDATE usuarios SET nombre_completo = %s, id_tipo = %s, grado = %s
+                           WHERE id_usuario = %s AND id_tipo <> %s
+                           RETURNING id_usuario""",
+                        (nombre, id_tipo, grado, uid, ID_TIPO_ADMIN))
+    return _ok('Usuario actualizado.') if fila else _no('Usuario no encontrado.')
+
+# Cambia el estado de una cuenta de usuario.
+@app.route('/admin/api/usuarios/<int:uid>/estado', methods=['POST'])
+@admin_required_inicial
+@api_seguro
+def admin_api_estado_usuario(uid):
+    # Bloquear/activar: NOT activo invierte el valor que tenga. Un admin no puede bloquearse a sí mismo
+    # ni a otros administradores.
+    if uid == session.get('user_id'):
+        return _no('No puedes bloquear tu propia cuenta.', 400)
+    fila = ejecutar_uno("""UPDATE usuarios SET activo = NOT activo
+                           WHERE id_usuario = %s AND id_tipo <> %s
+                           RETURNING nombre_completo, activo""", (uid, ID_TIPO_ADMIN))
+    if not fila:
+        return _no('Usuario no encontrado.')
+    return _ok(f'{fila["nombre_completo"]} ahora está {"activo" if fila["activo"] else "bloqueado"}.')
+
+# Permite responder una consulta y notificar al usuario.
 @app.route('/admin/soporte/<int:id_soporte>/responder', methods=['GET', 'POST'])
 @admin_required
 def responder_soporte(id_soporte):
@@ -2741,6 +2496,237 @@ def responder_soporte(id_soporte):
         return redirect(url_for('admin_reportes'))
 
     return render_template('responder_soporte.html', consulta=consulta)
+
+
+
+# DOCENTES
+# Muestra los proyectos pendientes de revisión docente.
+@app.route('/aprobaciones')
+@docente_required
+def aprobaciones():
+    uid = session['user_id']
+    conn = None
+    cur = None
+    proyectos_pendientes = []
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute("""
+            SELECT nombre_completo
+            FROM usuarios
+            WHERE id_usuario = %s;
+        """, (uid,))
+        docente = cur.fetchone()
+        nombre_docente = (docente['nombre_completo'] or '').strip() if docente else ''
+
+        cur.execute("""
+            SELECT
+                p.id_proyecto,
+                p.titulo,
+                p.descripcion,
+                p.grado,
+                p.profesor_a_cargo,
+                p.imagen_portada,
+                p.fecha_creacion,
+                c.nombre_categoria AS categoria,
+                u.nombre_completo AS autor
+            FROM proyectos p
+            LEFT JOIN usuarios u ON p.id_usuario = u.id_usuario
+            LEFT JOIN categorias c ON p.id_categoria = c.id_categoria
+            WHERE LOWER(COALESCE(p.estado, '')) = 'pendiente'
+              AND LOWER(TRIM(COALESCE(p.profesor_a_cargo, ''))) = LOWER(TRIM(%s))
+            ORDER BY p.id_proyecto DESC;
+        """, (nombre_docente,))
+
+        proyectos_pendientes = cur.fetchall()
+
+    except Exception as e:
+        app.logger.exception('Error al cargar proyectos en /aprobaciones: %s', e)
+        flash('No se pudieron cargar los proyectos pendientes desde la base de datos.', 'danger')
+
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+    return render_template(
+        'aprobaciones.html',
+        proyectos=proyectos_pendientes,
+        pendientes_count=len(proyectos_pendientes)
+    )
+
+# Aprueba un proyecto en la revisión docente.
+@app.route('/aprobaciones/<int:id>/aprobar', methods=['POST'])
+@docente_required
+def aprobar_proyecto(id):
+    uid = session['user_id']
+    conn = cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute("SELECT nombre_completo FROM usuarios WHERE id_usuario = %s;", (uid,))
+        docente = cur.fetchone()
+        nombre_docente = (docente['nombre_completo'] or '').strip().lower() if docente else ''
+
+        cur.execute("""
+            SELECT id_proyecto, profesor_a_cargo
+            FROM proyectos
+            WHERE id_proyecto = %s;
+        """, (id,))
+        proyecto = cur.fetchone()
+
+        if not proyecto:
+            flash('El proyecto no existe.', 'danger')
+            return redirect(url_for('aprobaciones'))
+
+        if (proyecto['profesor_a_cargo'] or '').strip().lower() != nombre_docente:
+            flash('No tienes permiso para aprobar este proyecto.', 'danger')
+            return redirect(url_for('aprobaciones'))
+
+        cur.execute("""
+            UPDATE proyectos
+            SET estado = 'Publicado',
+                motivo_rechazo = NULL
+            WHERE id_proyecto = %s;
+        """, (id,))
+        cur.execute("SELECT id_usuario, titulo FROM proyectos WHERE id_proyecto = %s;", (id,))
+        datos_proy = cur.fetchone()
+        if datos_proy and datos_proy.get('id_usuario'):
+            cur.execute("""
+                INSERT INTO notificaciones_usuario (
+                    id_usuario, id_proyecto, tipo, titulo, mensaje, motivo, url_destino, leida
+                )
+                VALUES (%s, %s, 'aprobado', %s, %s, NULL, %s, FALSE);
+            """, (
+                datos_proy['id_usuario'],
+                id,
+                datos_proy.get('titulo') or 'Proyecto',
+                'Tu proyecto fue aprobado y ya está publicado.',
+                url_for('ver_proyecto', id=id)
+            ))
+        conn.commit()
+        flash('¡Proyecto aprobado y publicado correctamente!', 'success')
+    except Exception:
+        if conn:
+            conn.rollback()
+        app.logger.exception('Error al aprobar el proyecto')
+        flash('No se pudo aprobar el proyecto.', 'danger')
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+    return redirect(url_for('aprobaciones'))
+
+# Rechaza un proyecto en la revisión docente.
+@app.route('/aprobaciones/<int:id>/rechazar', methods=['POST'])
+@docente_required
+def rechazar_proyecto(id):
+    uid = session['user_id']
+    motivo = (request.form.get('motivo_rechazo') or '').strip()
+
+    if not motivo:
+        flash('Debes escribir las observaciones o el motivo del rechazo.', 'warning')
+        return redirect(url_for('aprobaciones'))
+
+    conn = cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute("SELECT nombre_completo FROM usuarios WHERE id_usuario = %s;", (uid,))
+        docente = cur.fetchone()
+        nombre_docente = (docente['nombre_completo'] or '').strip().lower() if docente else ''
+
+        cur.execute("""
+            SELECT id_proyecto, profesor_a_cargo
+            FROM proyectos
+            WHERE id_proyecto = %s;
+        """, (id,))
+        proyecto = cur.fetchone()
+
+        if not proyecto:
+            flash('El proyecto no existe.', 'danger')
+            return redirect(url_for('aprobaciones'))
+
+        if (proyecto['profesor_a_cargo'] or '').strip().lower() != nombre_docente:
+            flash('No tienes permiso para rechazar este proyecto.', 'danger')
+            return redirect(url_for('aprobaciones'))
+
+        cur.execute("""
+            UPDATE proyectos
+            SET estado = 'Borrador',
+                motivo_rechazo = %s
+            WHERE id_proyecto = %s;
+        """, (motivo, id))
+
+        cur.execute("SELECT id_usuario, titulo FROM proyectos WHERE id_proyecto = %s;", (id,))
+        datos_proy = cur.fetchone()
+        if datos_proy and datos_proy.get('id_usuario'):
+            cur.execute("""
+                INSERT INTO notificaciones_usuario (
+                    id_usuario, id_proyecto, tipo, titulo, mensaje, motivo, url_destino, leida
+                )
+                VALUES (%s, %s, 'rechazado', %s, %s, %s, %s, FALSE);
+            """, (
+                datos_proy['id_usuario'],
+                id,
+                datos_proy.get('titulo') or 'Proyecto',
+                'Tu proyecto fue rechazado y devuelto a borradores.',
+                motivo,
+                url_for('perfil') + '#tab-borradores'
+            ))
+        conn.commit()
+        flash('Proyecto devuelto a borrador con las observaciones.', 'success')
+    except Exception:
+        if conn:
+            conn.rollback()
+        app.logger.exception('Error al rechazar el proyecto')
+        flash('No se pudo rechazar el proyecto.', 'danger')
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+    return redirect(url_for('aprobaciones'))
+
+
+
+# RUTAS AUXILIARES Y ERRORES
+# Informa cuando la cuenta institucional aún no está registrada.
+@app.route('/error-registro')
+def user_not_registered_error():
+    flash('Continúa con Google usando tu cuenta institucional.', 'warning')
+    return redirect(url_for('login'))
+
+# Cierra la sesión activa y vuelve al acceso.
+@app.route('/logout')
+def logout():
+    session.clear()
+    flash('Has cerrado sesión correctamente.', 'success')
+    return redirect(url_for('login'))
+
+# Informa que el archivo enviado supera el tamaño permitido.
+@app.errorhandler(413)
+def archivo_muy_grande(e):
+    flash('El envío es demasiado grande. La portada puede pesar máximo 5 MB y los documentos, 10 MB en total.', 'danger')
+    return redirect(url_for('subir'))
+
+# Muestra una respuesta para las páginas que no existen.
+@app.errorhandler(404)
+def page_not_found(e):
+    # plantillas específicas no existen en el proyecto; usar una respuesta segura
+    try:
+        return render_template('base.html'), 404
+    except Exception:
+        return "Página no encontrada.", 404
+
 
 if __name__ == '__main__':
     app.run(debug=True)
