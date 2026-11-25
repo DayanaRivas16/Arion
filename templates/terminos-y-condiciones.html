@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+
+{% block title %}Términos y Condiciones - ARION{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/legal.css') }}">
+{% endblock %}
+
+{% block content %}
+<article class="legal-page mx-auto">
+    <header class="legal-header rounded-5 p-4 p-md-5 mb-4">
+        <span class="d-inline-flex align-items-center gap-2 bg-primary-subtle text-primary small fw-semibold px-3 py-2 rounded-pill mb-3">
+            <i class="bi bi-file-earmark-text"></i> Información legal
+        </span>
+        <h1 class="fw-black text-dark display-6 mb-2">Términos y Condiciones de Uso</h1>
+        <p class="text-muted mb-0">Plataforma ARION <span class="legal-separator">·</span> Última actualización: Noviembre de 2026</p>
+    </header>
+
+    <div class="legal-content bg-white rounded-5 border shadow-sm p-4 p-md-5">
+        <p class="text-muted mb-4">
+            Bienvenido a ARION, la plataforma digital académica de la Institución Educativa Sagrada Familia de Palmira (sede principal). Al acceder y utilizar este sitio web, aceptas cumplir con los siguientes términos y condiciones:
+        </p>
+
+        <section class="legal-section">
+            <h2><span>1</span> Propósito de la Plataforma</h2>
+            <p>ARION es un espacio exclusivamente educativo diseñado para que los estudiantes publiquen, compartan y consulten proyectos escolares clasificados por categorías y etiquetas académicas. Queda estrictamente prohibido el uso de la plataforma con fines comerciales, publicitarios o ajenos a la actividad pedagógica de la institución.</p>
+        </section>
+
+        <section class="legal-section">
+            <h2><span>2</span> Propiedad Intelectual y Autoría</h2>
+            <ul>
+                <li>Los proyectos, textos, imágenes, códigos y demás materiales publicados pertenecen intelectualmente a los estudiantes autores (y/o sus respectivos grupos de trabajo).</li>
+                <li>Al subir un proyecto, el estudiante garantiza que es de su autoría original o que cuenta con los permisos necesarios para utilizar material de terceros, respetando los derechos de autor y evitando el plagio.</li>
+                <li>El estudiante otorga a la Institución Educativa Sagrada Familia de Palmira una licencia no exclusiva y gratuita para exhibir dichos proyectos dentro de la plataforma con fines académicos y de divulgación institucional.</li>
+            </ul>
+        </section>
+
+        <section class="legal-section">
+            <h2><span>3</span> Normas de Conducta y Contenido</h2>
+            <p>Los usuarios se comprometen a mantener un comportamiento respetuoso acorde con el Manual de Convivencia de la institución. No está permitido subir contenido que:</p>
+            <ul>
+                <li>Sea ofensivo, difamatorio, discriminatorio o que promueva el acoso escolar (bullying).</li>
+                <li>Contenga material protegido por derechos de autor sin la debida atribución.</li>
+                <li>Incluya virus, enlaces maliciosos o cualquier elemento que afecte el funcionamiento de Arion.</li>
+            </ul>
+        </section>
+
+        <section class="legal-section mb-0">
+            <h2><span>4</span> Moderación y Limitación de Responsabilidad</h2>
+            <p>La administración de la plataforma y los docentes encargados se reservan el derecho de revisar, ocultar o eliminar cualquier proyecto que incumpla estas normas o el Manual de Convivencia. La institución no se hace responsable por el uso indebido que terceros puedan darle a la información publicada públicamente en el portal.</p>
+        </section>
+    </div>
+</article>
+{% endblock %}
