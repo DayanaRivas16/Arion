@@ -30,7 +30,8 @@ h1,h2,h3,p{margin:0}
 
 /* Encabezados y utilidades */
 .page-head{margin-bottom:18px}
-.page-head h1{font-size:22px;font-weight:700}
+.page-head h1{font-size:1.75rem;font-weight:700}
+.page-head .sub{font-size:14px}
 .sub{color:var(--muted);font-size:12px;margin-top:2px}
 .xs{font-size:11px}.strong{font-weight:600}.c{text-align:center}.nowrap{white-space:nowrap}
 .min-w-0{min-width:0}
@@ -154,11 +155,23 @@ label input,label select{margin-top:6px;text-transform:none;letter-spacing:0;fon
 .report-stat{display:flex;align-items:center;gap:14px;padding:18px}
 .report-stat-icon{width:42px;height:42px;display:grid;place-items:center;border-radius:12px;font-size:19px}
 .report-stat-icon-blue{background:var(--blue-l);color:var(--blue)}.report-stat-icon-amber{background:var(--amber-l);color:var(--amber)}.report-stat-icon-green{background:var(--green-l);color:var(--green)}
-.report-stat-label{color:var(--muted);font-size:12px}.report-stat-value{margin-top:3px;font-size:24px;font-weight:700;line-height:1.2}
+.report-stat-label{color:var(--muted);font-size:12px}.report-stat-value{margin-top:3px;font-size:24px;font-weight:700;line-height:1.2;text-align:center}
 .report-list{overflow:hidden}.report-list-heading{padding:18px 20px}.report-list-heading h2{font-size:15px;font-weight:700}
 .report-table{min-width:720px}.report-email{overflow-wrap:anywhere}.report-message{max-width:480px;line-height:1.5}.report-message p{margin-top:3px;color:var(--muted)}
 .report-empty{padding:44px 16px}.report-empty .bi{display:block;margin-bottom:8px;font-size:24px}
 .report-jump-links{display:flex;flex-wrap:wrap;gap:8px}
+.report-jump-links .btn{transition:background-color .15s,color .15s,border-color .15s}
+.report-jump-links .btn:hover,.report-jump-links .btn:focus-visible,.report-jump-links .btn:active{
+  background:var(--blue);
+  border-color:var(--blue);
+  color:#fff;
+}
+body:has(#consultas:target) .report-jump-links a[href="#consultas"],
+body:has(#estadisticas:target) .report-jump-links a[href="#estadisticas"]{
+  background:var(--blue);
+  border-color:var(--blue);
+  color:#fff;
+}
 .report-jump-links a:focus-visible,.report-year-filter :focus-visible{outline:3px solid #93c5fd;outline-offset:2px}
 .report-list[id],.report-analytics[id]{scroll-margin-top:76px}
 .report-analytics{margin-top:28px}
@@ -190,7 +203,6 @@ label input,label select{margin-top:6px;text-transform:none;letter-spacing:0;fon
     gap:8px;
     padding:20px 16px;
   }
-  .report-stat-value{text-align:center}
   .report-page-heading,.report-list-heading{align-items:flex-start}
   .report-list-heading > .chip{display:none}
   .report-page-heading,.report-analytics-heading{align-items:flex-start;flex-direction:column}
@@ -418,3 +430,65 @@ label input,label select{margin-top:6px;text-transform:none;letter-spacing:0;fon
         background: #ffffff;
     }
 }
+/* Menú de hamburguesa del panel (mismo estilo que el de estudiante) */
+.nav-toggle { display: none; }
+
+@media (max-width: 899.98px) {
+    .nav { box-shadow: 0 6px 16px rgba(15, 23, 42, .06); }
+
+    .nav-in { flex-wrap: wrap; gap: 6px 10px; padding: 10px 18px 0; }
+    .brand { order: 1; margin-right: auto; }
+    .user { order: 2; }
+
+    /* Solo las tres rayas, sin caja */
+    .nav-toggle {
+        order: 3;
+        display: grid;
+        place-items: center;
+        width: 36px;
+        height: 36px;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--ink);
+        font-size: 1.6rem;
+        cursor: pointer;
+    }
+    .nav-toggle:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+    /* Los enlaces quedan escondidos hasta abrir el menú */
+    .links {
+        order: 4;
+        flex: 0 0 100%;
+        display: none;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0;
+        overflow: visible;
+        margin: 4px 0 0;
+        padding: 0 0 8px;
+        border-top: 0;
+    }
+    .links.abierto { display: flex; }
+
+    .links a {
+        display: block;
+        padding: 12px 4px;
+        font-size: 14px;
+        color: var(--muted);
+        border-bottom: 2px solid transparent;
+        border-radius: 0;
+        background: none;
+    }
+    .links a:hover { color: var(--blue); }
+
+    /* Enlace activo: texto oscuro y línea azul debajo */
+    .links a.active {
+        color: var(--ink);
+        font-weight: 600;
+        border-bottom-color: var(--blue);
+        background: none;
+    }
+}
+/* La barra de filtros es una .card de Bootstrap (columna por defecto); aquí va en fila */
+.card.toolbar { flex-direction: row; }

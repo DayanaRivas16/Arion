@@ -77,13 +77,22 @@
                     </td>
                     <td class="nowrap">{{ u.grado }}</td>
                     <td><span class="chip {{ 'chip-green' if u.estado == 'Activo' else 'chip-amber' }}">{{ u.estado }}</span></td>
-                    <td class="c nowrap">
+                    <td class="c">
                         {% if u.es_admin %}
-                        <span class="t-muted xs">—</span>
+                            {% if u.id == session.get('user_id') %}
+                            <span class="t-muted xs">Tu cuenta</span>
+                            {% else %}
+                            <button type="button" class="btn btn-soft btn-sm"
+                                    data-admin-accion="quitar" data-id="{{ u.id }}" data-nombre="{{ u.nombre }}"
+                                    data-url="{{ url_for('admin_api_cambiar_admin', uid=u.id) }}">Quitar admin</button>
+                            {% endif %}
                         {% else %}
-                        <div class="d-inline-flex justify-content-center gap-1">
+                        <div class="d-inline-flex flex-wrap justify-content-center gap-1">
                             <button type="button" class="btn btn-soft btn-sm" data-edit-user data-id="{{ u.id }}" data-nombre="{{ u.nombre }}" data-rol="{{ u.id_tipo }}" data-grado="{{ u.grado }}">Editar</button>
                             {% if u.estado == 'Activo' %}
+                            <button type="button" class="btn btn-soft btn-sm"
+                                    data-admin-accion="dar" data-id="{{ u.id }}" data-nombre="{{ u.nombre }}"
+                                    data-url="{{ url_for('admin_api_cambiar_admin', uid=u.id) }}">Hacer admin</button>
                             <button type="button" class="btn btn-danger btn-sm" data-confirm="¿Bloquear a {{ u.nombre }}?"
                                     data-api="{{ url_for('admin_api_estado_usuario', uid=u.id) }}">Bloquear</button>
                             {% else %}
@@ -139,4 +148,88 @@
         </div>
     </form>
 </dialog>
+<dialog id="dlg-admin" class="dlg">
+    <form id="form-admin">
+        <h3 id="dlg-admin-titulo"></h3>
+        <p id="dlg-admin-texto" class="t-muted" style="margin-bottom:14px"></p>
+
+        <label id="dlg-admin-rol-wrap">Al quitarle el permiso, pasa a ser
+            <select id="dlg-admin-rol">
+                {% for r in roles_editables %}
+                <option value="{{ r.id }}">{{ 'Profesor' if r.nombre|lower in ['docente', 'profesor'] else r.nombre }}</option>
+                {% endfor %}
+            </select>
+        </label>
+
+        <div class="dlg-actions">
+            <button type="button" class="btn btn-soft" id="dlg-admin-cancelar">Cancelar</button>
+            <button type="submit" class="btn btn-primary" id="dlg-admin-aceptar">Confirmar</button>
+        </div>
+    </form>
+</dialog>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var dlg = document.getElementById('dlg-admin');
+    var form = document.getElementById('form-admin');
+    var titulo = document.getElementById('dlg-admin-titulo');
+    var texto = document.getElementById('dlg-admin-texto');
+    var rolWrap = document.getElementById('dlg-admin-rol-wrap');
+    var rol = document.getElementById('dlg-admin-rol');
+    var aceptar = document.getElementById('dlg-admin-aceptar');
+    var actual = null;
+
+    function aviso(msg, error) {
+        var t = document.getElementById('toast');
+        if (!t) return;
+        t.textContent = msg;
+        t.classList.toggle('err', !!error);
+        t.classList.add('show');
+        setTimeout(function () { t.classList.remove('show'); }, 3200);
+    }
+
+    // Abre la ventana según el botón que se pulsó
+    document.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-admin-accion]');
+        if (!b) return;
+        actual = { accion: b.dataset.adminAccion, url: b.dataset.url };
+        var dar = actual.accion === 'dar';
+
+        titulo.textContent = dar ? 'Nombrar administrador' : 'Quitar administrador';
+        texto.textContent = dar
+            ? b.dataset.nombre + ' podrá gestionar usuarios, proyectos y la configuración de la plataforma.'
+            : b.dataset.nombre + ' perderá el acceso al panel de administración.';
+        rolWrap.style.display = dar ? 'none' : 'block';
+        dlg.showModal();
+    });
+
+    document.getElementById('dlg-admin-cancelar').addEventListener('click', function () { dlg.close(); });
+
+    form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        var cuerpo = { accion: actual.accion };
+        if (actual.accion === 'quitar') cuerpo.rol = rol.value;
+
+        aceptar.disabled = true;
+        try {
+            var resp = await fetch(actual.url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(cuerpo)
+            });
+            var datos = await resp.json();
+            aviso(datos.msg, !datos.ok);
+            if (datos.ok) {
+                dlg.close();
+                setTimeout(function () { location.reload(); }, 800);
+            }
+        } catch (err) {
+            aviso('No se pudo completar la acción. Intenta de nuevo.', true);
+        }
+        aceptar.disabled = false;
+    });
+})();
+</script>
 {% endblock %}

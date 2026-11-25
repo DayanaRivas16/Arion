@@ -18,12 +18,18 @@
     <header class="nav">
         <div class="wrap nav-in">
             <a class="brand" href="{{ url_for('admin_dashboard') }}">ARION</a>
+            <button type="button" class="nav-toggle" id="nav-toggle"
+                    aria-controls="menu-admin" aria-expanded="false"
+                    aria-label="Abrir menú">
+                <i class="bi bi-list"></i>
+            </button>
 
             {# Cada enlace usa el nombre de su ruta en app.py y también marca la sección activa. #}
-            <nav class="links" aria-label="Navegación principal del panel">
+            <nav class="links" id="menu-admin" aria-label="Navegación principal del panel">
                 <a href="{{ url_for('admin_dashboard') }}" class="{{ 'active' if request.endpoint == 'admin_dashboard' }}">Dashboard</a>
                 <a href="{{ url_for('admin_usuarios') }}" class="{{ 'active' if request.endpoint == 'admin_usuarios' }}">Usuarios</a>
                 <a href="{{ url_for('admin_proyectos') }}" class="{{ 'active' if request.endpoint == 'admin_proyectos' }}">Proyectos</a>
+                <a href="{{ url_for('historial_revisiones') }}" class="{{ 'active' if request.endpoint == 'historial_revisiones' }}">Historial</a>
                 <a href="{{ url_for('admin_reportes') }}" class="{{ 'active' if request.endpoint == 'admin_reportes' }}">Reportes</a>
                 <a href="{{ url_for('admin_configuracion') }}" class="{{ 'active' if request.endpoint == 'admin_configuracion' }}">Configuración</a>
             </nav>
@@ -47,6 +53,19 @@
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
     <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+    <script>
+    (function () {
+        var boton = document.getElementById('nav-toggle');
+        var menu = document.getElementById('menu-admin');
+        if (!boton || !menu) return;
+
+        boton.addEventListener('click', function () {
+            var abierto = menu.classList.toggle('abierto');
+            boton.setAttribute('aria-expanded', abierto);
+            boton.querySelector('i').className = abierto ? 'bi bi-x-lg' : 'bi bi-list';
+        });
+    })();
+</script>
     {% block extra_js %}{% endblock %}
     <dialog id="dlg-confirm" class="confirm-dialog">
 

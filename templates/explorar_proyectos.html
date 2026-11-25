@@ -39,11 +39,11 @@
             </div>
             <div class="col-12 col-sm-8 col-lg-2">
                 <select id="sort-select" class="explore-control form-select rounded-4 shadow-sm border-light" aria-label="Ordenar proyectos">
-                    <option value="recientes">Más recientes</option>
+                    <option value="recientes" {{ 'selected' if orden == 'recientes' else '' }}>Más recientes</option>
                     {% if session.get('user_id') %}
-                    <option value="vistas">Más vistos</option>
-                    <option value="valorados">Mejor valorados</option>
-                    <option value="gustados">Más gustados</option>
+                    <option value="vistas" {{ 'selected' if orden == 'vistas' else '' }}>Más vistos</option>
+                    <option value="valorados" {{ 'selected' if orden == 'valorados' else '' }}>Mejor valorados</option>
+                    <option value="gustados" {{ 'selected' if orden == 'gustados' else '' }}>Más gustados</option>
                     {% endif %}
                 </select>
             </div>
@@ -65,14 +65,10 @@
 
         <div class="d-flex gap-2 flex-wrap mb-4 overflow-x-auto pb-2" id="category-container">
             <button class="btn btn-primary rounded-pill px-4 btn-cat active" data-category="Todos">Todos</button>
-            <button class="btn btn-light text-muted border-0 rounded-pill px-4 btn-cat" data-category="Tecnología">Tecnología</button>
-            <button class="btn btn-light text-muted border-0 rounded-pill px-4 btn-cat" data-category="Diseño">Diseño</button>
-            <button class="btn btn-light text-muted border-0 rounded-pill px-4 btn-cat" data-category="IA">IA</button>
-            <button class="btn btn-light text-muted border-0 rounded-pill px-4 btn-cat" data-category="Sostenibilidad">Sostenibilidad</button>
-            <button class="btn btn-light text-muted border-0 rounded-pill px-4 btn-cat" data-category="Educación">Educación</button>
-            <button class="btn btn-light text-muted border-0 rounded-pill px-4 btn-cat" data-category="Salud">Salud</button>
-            <button class="btn btn-light text-muted border-0 rounded-pill px-4 btn-cat" data-category="Arte">Arte</button>
-            <button class="btn btn-light text-muted border-0 rounded-pill px-4 btn-cat" data-category="Ciencia">Ciencia</button>
+            {% for categoria in categorias %}
+            <button class="btn btn-light text-muted border-0 rounded-pill px-4 btn-cat"
+                    data-category="{{ categoria.nombre }}">{{ categoria.nombre }}</button>
+            {% endfor %}
         </div>
 
         <!-- Resultados: este contenedor recibe las tarjetas generadas por el JavaScript externo. -->

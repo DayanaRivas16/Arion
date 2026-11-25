@@ -5,13 +5,30 @@ if (projectsElement && projectsWrapper) {
     const projects = JSON.parse(projectsElement.textContent || '[]');
     const authenticated = projectsWrapper.dataset.authenticated === 'true';
     const pageSize = 9;
+    const searchInput = document.getElementById('search-input');
+    const authorSelect = document.getElementById('author-select');
+    const sortSelect = document.getElementById('sort-select');
+    const categoryButtons = [...document.querySelectorAll('.btn-cat')];
+    const queryParams = new URLSearchParams(window.location.search);
 
-    let activeCategory = 'Todos';
+    let activeCategory = queryParams.get('categoria') || 'Todos';
+    if (!categoryButtons.some(button => button.dataset.category === activeCategory)) {
+        activeCategory = 'Todos';
+    }
     let viewMode = 'grid';
-    let searchQuery = '';
-    let selectedAuthor = '';
-    let sortBy = 'recientes';
+    let searchQuery = queryParams.get('q') || '';
+    let selectedAuthor = queryParams.get('autor') || '';
     let visibleCount = pageSize;
+
+    searchInput.value = searchQuery;
+    authorSelect.value = selectedAuthor;
+    selectedAuthor = authorSelect.value;
+    categoryButtons.forEach(button => {
+        const active = button.dataset.category === activeCategory;
+        button.className = active
+            ? 'btn btn-primary rounded-pill px-4 btn-cat active'
+            : 'btn btn-light text-muted border-0 rounded-pill px-4 btn-cat';
+    });
 
     const resultsCount = document.getElementById('results-count');
     const emptyState = document.getElementById('empty-state');
@@ -23,13 +40,6 @@ if (projectsElement && projectsWrapper) {
         })[character]);
     }
 
-    const sorters = {
-        recientes: (a, b) => b.date - a.date,
-        vistas: (a, b) => b.views - a.views,
-        valorados: (a, b) => (b.rating ?? -1) - (a.rating ?? -1),
-        gustados: (a, b) => b.likes - a.likes
-    };
-
     function getFilteredProjects() {
         const query = searchQuery.trim().toLowerCase();
         return projects
@@ -37,8 +47,7 @@ if (projectsElement && projectsWrapper) {
                 (activeCategory === 'Todos' || project.category === activeCategory) &&
                 (project.title.toLowerCase().includes(query) || project.author.toLowerCase().includes(query)) &&
                 (selectedAuthor === '' || project.author === selectedAuthor)
-            )
-            .sort(sorters[sortBy]);
+            );
     }
 
     function imageHtml(project) {
@@ -108,21 +117,35 @@ if (projectsElement && projectsWrapper) {
         renderProjects();
     }
 
-    document.getElementById('search-input').addEventListener('input', event => {
+    searchInput.addEventListener('input', event => {
         searchQuery = event.target.value;
         resetAndRender();
     });
-    document.getElementById('author-select').addEventListener('change', event => {
+    authorSelect.addEventListener('change', event => {
         selectedAuthor = event.target.value;
         resetAndRender();
     });
-    document.getElementById('sort-select').addEventListener('change', event => {
-        sortBy = event.target.value;
-        resetAndRender();
+    sortSelect.addEventListener('change', event => {
+        const url = new URL(window.location.href);
+        const value = event.target.value;
+
+        if (value === 'recientes') {
+            url.searchParams.delete('orden');
+        } else {
+            url.searchParams.set('orden', value);
+        }
+        if (searchQuery) url.searchParams.set('q', searchQuery);
+        else url.searchParams.delete('q');
+        if (selectedAuthor) url.searchParams.set('autor', selectedAuthor);
+        else url.searchParams.delete('autor');
+        if (activeCategory !== 'Todos') url.searchParams.set('categoria', activeCategory);
+        else url.searchParams.delete('categoria');
+
+        window.location.assign(url.toString());
     });
-    document.querySelectorAll('.btn-cat').forEach(button => {
+    categoryButtons.forEach(button => {
         button.addEventListener('click', event => {
-            document.querySelectorAll('.btn-cat').forEach(item => {
+            categoryButtons.forEach(item => {
                 item.className = 'btn btn-light text-muted border-0 rounded-pill px-4 btn-cat';
             });
             event.currentTarget.className = 'btn btn-primary rounded-pill px-4 btn-cat active';

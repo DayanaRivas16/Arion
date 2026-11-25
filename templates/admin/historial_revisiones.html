@@ -1,0 +1,138 @@
+{% extends 'admin/admin_base.html' %}
+
+{% block title %}Historial de revisiones - ARION{% endblock %}
+
+
+
+{% block content %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/historial.css') }}">
+{% endblock %}
+<section class="rev-pagina-header">
+    <div>
+        <h1 class="h3 fw-bold mb-1">Historial de revisiones</h1>
+        <p class="text-muted mb-0">
+            Todas las aprobaciones, observaciones y rechazos de proyectos.
+        </p>
+    </div>
+
+        <form method="get" class="rev-filtro">
+        <div class="rev-filtro__campo">
+            <label for="filtroAccion">Decisión</label>
+            <select id="filtroAccion" name="accion" class="form-select">
+                <option value="">Todas</option>
+                {% for a in ['Aprobado', 'Rechazado'] %}
+                <option value="{{ a }}" {% if filtro_accion == a %}selected{% endif %}>{{ a }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="rev-filtro__campo">
+            <label for="filtroCategoria">Categoría</label>
+            <select id="filtroCategoria" name="categoria" class="form-select">
+                <option value="">Todas</option>
+                {% for c in categorias %}
+                <option value="{{ c.id_categoria }}"
+                        {% if filtro_categoria == c.id_categoria %}selected{% endif %}>
+                    {{ c.nombre_categoria }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="rev-filtro__campo">
+            <label for="filtroDesde">Desde</label>
+            <input type="date" id="filtroDesde" name="desde" class="form-control"
+                   value="{{ desde.isoformat() if desde else '' }}">
+        </div>
+
+        <div class="rev-filtro__campo">
+            <label for="filtroHasta">Hasta</label>
+            <input type="date" id="filtroHasta" name="hasta" class="form-control"
+                   value="{{ hasta.isoformat() if hasta else '' }}">
+        </div>
+
+        <button type="submit" class="btn btn-primary fw-semibold">Filtrar</button>
+
+        {% if filtro_accion or filtro_categoria or desde or hasta %}
+        <a href="{{ url_for('historial_revisiones') }}" class="btn btn-outline-secondary fw-semibold">Limpiar</a>
+        {% endif %}
+    </form>
+</section>
+
+{% if historial %}
+<div class="rev-lista">
+    {% for r in historial %}
+        {% set f = (r.fecha_revision|fecha_es).split(' ') %}
+        <article class="rev-card">
+
+            <div class="rev-card__img">
+                {% if r.imagen_portada %}
+                <img src="{{ url_for('static', filename=r.imagen_portada) }}" alt="">
+                {% else %}
+                <i class="bi bi-image"></i>
+                {% endif %}
+            </div>
+
+            <div class="rev-card__cuerpo">
+                <h2 class="rev-card__titulo">{{ r.titulo }}</h2>
+
+                <div class="rev-card__chips">
+                    {% if r.categoria %}
+                    <span class="rev-chip rev-chip--neutro">{{ r.categoria }}</span>
+                    {% endif %}
+                    <span class="rev-chip rev-chip--{{ r.accion|lower }}">
+                        {% if r.accion == 'Observado' %}{{ r.n_observacion }}.ª observación{% else %}{{ r.accion }}{% endif %}
+                    </span>
+                </div>
+
+                <div class="rev-card__info">
+                    <div class="rev-persona">
+                        <span class="rev-avatar">{{ r.autor|iniciales }}</span>
+                        <span>
+                            <span class="rev-persona__nombre">{{ r.autor or 'Sin autor' }}</span>
+                            <span class="rev-persona__detalle">Autor{% if r.grado %} · Grado {{ r.grado }}{% endif %}</span>
+                        </span>
+                    </div>
+
+                    <div class="rev-persona">
+                        <span class="rev-avatar rev-avatar--revisor"><i class="bi bi-person-check"></i></span>
+                        <span>
+                            <span class="rev-persona__nombre">{{ r.revisor or 'Sin registro' }}</span>
+                            <span class="rev-persona__detalle">Revisó{% if r.rol %} · {{ r.rol }}{% endif %}</span>
+                        </span>
+                    </div>
+                </div>
+
+                {% if r.comentario %}
+                <p class="rev-card__comentario">{{ r.comentario }}</p>
+                {% endif %}
+            </div>
+
+            <div class="rev-fecha" title="Revisado el {{ r.fecha_revision|fecha_es }}">
+                <span class="rev-fecha__mes">{{ f[1] }}</span>
+                <span class="rev-fecha__dia">{{ f[0] }}</span>
+                <span class="rev-fecha__anio">{{ f[2] }}</span>
+                <span class="rev-fecha__hora">{{ r.fecha_revision.strftime('%H:%M') }}</span>
+            </div>
+
+        </article>
+        {% endfor %}
+
+</div>
+{% else %}
+<div class="rev-tarjeta">
+    <div class="rev-estado-vacio">
+        <i class="bi bi-clock-history"></i>
+        <p class="mb-0">
+            {% if filtro_accion or filtro_categoria or desde or hasta %}
+            No hay revisiones con esos filtros.
+            {% else %}
+            Aún no se ha revisado ningún proyecto.
+            {% endif %}
+        </p>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
